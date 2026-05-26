@@ -143,6 +143,17 @@ nav {
   margin-top: 0;
 }
 
+.section-heading-row {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 12px;
+}
+
+.section-heading-row .subheading {
+  margin: 0;
+}
+
 .info-grid {
   display: grid;
   gap: 12px;
@@ -183,7 +194,8 @@ nav {
 }
 
 .action-row button,
-td button {
+td button,
+.danger-button {
   background: #1f5f9f;
   border: 0;
   border-radius: 6px;
@@ -196,6 +208,14 @@ td button {
 .action-row button:hover,
 td button:hover {
   background: #184b7e;
+}
+
+.danger-button {
+  background: #b42318;
+}
+
+.danger-button:hover {
+  background: #912018;
 }
 
 .section-note {
@@ -259,7 +279,31 @@ td button:hover {
 .table-panel {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: auto;
+}
+
+.search-results-table table {
+  table-layout: fixed;
+}
+
+.search-results-table th:nth-child(1) {
+  width: 18%;
+}
+
+.search-results-table th:nth-child(2) {
+  width: 22%;
+}
+
+.search-results-table th:nth-child(3) {
+  width: 30%;
+}
+
+.search-results-table th:nth-child(4) {
+  width: 86px;
+}
+
+.search-results-table th:nth-child(5) {
+  width: 160px;
 }
 
 table {
@@ -302,4 +346,31 @@ a {
 
 a:hover {
   text-decoration: underline;
+}
+
+.wrap-cell {
+  overflow-wrap: anywhere;
+}
+
+.compact-cell,
+.time-cell,
+.link-cell {
+  white-space: nowrap;
+}
+
+.link-button {
+  align-items: center;
+  background: #e8f2ff;
+  border: 1px solid #bfd9ff;
+  border-radius: 6px;
+  color: #1d4f91;
+  display: inline-flex;
+  justify-content: center;
+  min-width: 52px;
+  padding: 6px 10px;
+}
+
+.link-button:hover {
+  background: #d9eaff;
+  text-decoration: none;
 }

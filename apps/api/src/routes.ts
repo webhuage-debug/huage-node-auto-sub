@@ -10,6 +10,7 @@ import {
 import {
   getNodePoolStatusHandler,
   getParseHistoryHandler,
+  clearNodePoolHandler,
   importTextHandler,
   listNodesHandler,
   parseLastGitHubResultsHandler
@@ -127,4 +128,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/node-pool/parse-last-github-results", async () => parseLastGitHubResultsHandler());
 
   app.get("/api/node-pool/parse-history", async () => getParseHistoryHandler());
+
+  app.post("/api/node-pool/clear", async () => clearNodePoolHandler());
 }

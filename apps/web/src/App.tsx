@@ -98,7 +98,7 @@ type ParseHistoryResponse = {
   items: ParseHistoryItem[];
 };
 
-const appVersion = "v0.3.0";
+const appVersion = "v0.3.1";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -207,6 +207,18 @@ async function fetchNodeList(): Promise<NodeListResponse> {
   if (!response.ok) {
     throw new Error("节点列表读取失败");
   }
+  return response.json();
+}
+
+async function clearNodePool(): Promise<{ ok: boolean; cleared: boolean; total: number; updatedAt: string }> {
+  const response = await fetch("/api/node-pool/clear", {
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error("清空节点池失败");
+  }
+
   return response.json();
 }
 
@@ -399,7 +411,7 @@ function CollectorPage() {
       {message ? <div className="inline-message">{message}</div> : null}
 
       <h3 className="subheading">搜索结果摘要</h3>
-      <div className="table-panel">
+      <div className="table-panel search-results-table">
         <table>
           <thead>
             <tr>
@@ -418,15 +430,15 @@ function CollectorPage() {
             ) : (
               results.map((item) => (
                 <tr key={`${item.keyword}-${item.repository}-${item.path}-${item.url}`}>
-                  <td>{item.keyword}</td>
-                  <td>{item.repository}</td>
-                  <td>{item.path}</td>
-                  <td>
-                    <a href={item.url} target="_blank" rel="noreferrer">
-                      查看
+                  <td className="compact-cell">{item.keyword}</td>
+                  <td className="wrap-cell">{item.repository}</td>
+                  <td className="wrap-cell">{item.path}</td>
+                  <td className="link-cell">
+                    <a className="link-button" href={item.url} target="_blank" rel="noreferrer">
+                      打开
                     </a>
                   </td>
-                  <td>{formatDate(item.fetchedAt)}</td>
+                  <td className="time-cell">{formatDate(item.fetchedAt)}</td>
                 </tr>
               ))
             )}
@@ -569,9 +581,10 @@ function StatsPage() {
   const [status, setStatus] = useState<NodePoolStatus | null>(null);
   const [nodes, setNodes] = useState<NodePoolItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
 
-  useEffect(() => {
-    Promise.all([fetchNodePoolStatus(), fetchNodeList()])
+  const loadStatsData = useCallback(async () => {
+    await Promise.all([fetchNodePoolStatus(), fetchNodeList()])
       .then(([statusData, nodeData]) => {
         setStatus(statusData);
         setNodes(nodeData.items || []);
@@ -579,8 +592,39 @@ function StatsPage() {
       .catch((error: Error) => setMessage(error.message));
   }, []);
 
+  useEffect(() => {
+    loadStatsData();
+  }, [loadStatsData]);
+
+  async function handleClearNodePool() {
+    const confirmed = window.confirm("确认要清空当前节点池吗？此操作会删除本地节点池中的测试节点，但不会删除配置文件。");
+
+    if (!confirmed) {
+      return;
+    }
+
+    setClearing(true);
+    setMessage(null);
+
+    try {
+      await clearNodePool();
+      await loadStatsData();
+      setMessage("节点池已清空。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "清空节点池失败");
+    } finally {
+      setClearing(false);
+    }
+  }
+
   return (
     <>
+      <div className="section-heading-row">
+        <h3 className="subheading">节点池统计</h3>
+        <button className="danger-button" disabled={clearing} onClick={handleClearNodePool}>
+          {clearing ? "正在清空..." : "清空节点池"}
+        </button>
+      </div>
       <InfoGrid
         items={[
           ["节点池总数", String(status?.total ?? 0)],

@@ -149,3 +149,19 @@ export async function listNodes(options: {
       .map(toPublicNode)
   };
 }
+
+export async function clearNodePool() {
+  const updatedAt = new Date().toISOString();
+  await writeNodePoolFile({
+    version: 1,
+    updatedAt,
+    nodes: []
+  });
+
+  return {
+    ok: true,
+    cleared: true,
+    total: 0,
+    updatedAt
+  };
+}

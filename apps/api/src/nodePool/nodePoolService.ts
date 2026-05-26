@@ -2,7 +2,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { getLastCollectorResults } from "../collector/githubCollector.js";
 import { readLimitedGitHubContents } from "./githubContentResolver.js";
 import { createNodeFromRaw, emptyProtocolStats, parseNodeRawsFromText } from "./nodeParser.js";
-import { getNodePoolStatus, listNodes, upsertNodes } from "./nodeStore.js";
+import { clearNodePool, getNodePoolStatus, listNodes, upsertNodes } from "./nodeStore.js";
 import type { ImportSummary, NodePoolItem, NodeProtocol, NodeSource } from "./nodeTypes.js";
 
 type ImportTextBody = {
@@ -186,4 +186,10 @@ export function getParseHistoryHandler() {
     ok: true,
     items: parseHistory
   };
+}
+
+export async function clearNodePoolHandler() {
+  const result = await clearNodePool();
+  parseHistory.splice(0);
+  return result;
 }
