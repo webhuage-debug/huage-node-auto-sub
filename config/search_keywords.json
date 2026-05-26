@@ -1,0 +1,40 @@
+{
+  "github_search_keywords": [
+    "v2ray free node",
+    "v2ray 免费节点",
+    "vmess free",
+    "vless free",
+    "trojan free",
+    "shadowsocks free",
+    "clash subscription",
+    "mihomo proxy provider",
+    "sing-box subscription",
+    "free proxy subscription",
+    "免费订阅",
+    "免费节点",
+    "节点订阅"
+  ],
+  "protocol_keywords": [
+    "vmess://",
+    "vless://",
+    "trojan://",
+    "ss://",
+    "ssr://"
+  ],
+  "exclude_keywords": [
+    "example",
+    "demo",
+    "test only",
+    "expired",
+    "invalid"
+  ],
+  "file_keywords": [
+    "clash",
+    "mihomo",
+    "v2ray",
+    "sing-box",
+    "subscription",
+    "nodes",
+    "proxy"
+  ]
+}

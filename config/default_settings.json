@@ -1,0 +1,18 @@
+{
+  "automation": {
+    "enabled": false,
+    "collect_interval_minutes": 30,
+    "subscription_refresh_interval_minutes": 5
+  },
+  "subscription": {
+    "target_node_count": 20,
+    "minimum_node_count": 10,
+    "valid_days": 15
+  },
+  "detection": {
+    "preferred_core": "xray",
+    "timeout_seconds": 10,
+    "max_concurrent": 3,
+    "judge_latency": false
+  }
+}

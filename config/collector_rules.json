@@ -1,0 +1,14 @@
+{
+  "github": {
+    "enabled": true,
+    "request_interval_seconds": 10,
+    "max_requests_per_minute": 6,
+    "max_requests_per_hour": 300,
+    "keyword_cooldown_minutes": 30,
+    "repo_cooldown_hours": 6,
+    "result_cache_minutes": 30,
+    "stop_on_rate_limit": true,
+    "backoff_on_403_minutes": 15,
+    "backoff_on_429_minutes": 15
+  }
+}

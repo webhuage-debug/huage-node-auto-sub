@@ -1,0 +1,283 @@
+import { useMemo, useState } from "react";
+
+type MenuKey =
+  | "overview"
+  | "collector"
+  | "detection"
+  | "subscription"
+  | "cores"
+  | "stats"
+  | "settings";
+
+type MenuItem = {
+  key: MenuKey;
+  label: string;
+};
+
+const menus: MenuItem[] = [
+  { key: "overview", label: "总览" },
+  { key: "collector", label: "采集管理" },
+  { key: "detection", label: "检测管理" },
+  { key: "subscription", label: "订阅管理" },
+  { key: "cores", label: "内核管理" },
+  { key: "stats", label: "统计数据" },
+  { key: "settings", label: "系统设置" }
+];
+
+const placeholderMessage = "当前为框架版本，该功能将在后续版本实现。";
+
+function notifyPlaceholder() {
+  window.alert(placeholderMessage);
+}
+
+function InfoGrid({ items }: { items: Array<[string, string]> }) {
+  return (
+    <div className="info-grid">
+      {items.map(([label, value]) => (
+        <div className="info-item" key={label}>
+          <span>{label}</span>
+          <strong>{value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SectionNote({ children }: { children: string }) {
+  return <div className="section-note">{children}</div>;
+}
+
+function OverviewPage() {
+  return (
+    <>
+      <InfoGrid
+        items={[
+          ["系统名称", "华哥自动节点订阅池"],
+          ["当前版本", "v0.1.0-skeleton"],
+          ["自动模式", "未启用"],
+          ["节点池总数", "0"],
+          ["可用节点数", "0"],
+          ["当前订阅输出", "0"],
+          ["最近订阅刷新", "暂无"],
+          ["GitHub 限流状态", "未接入"],
+          ["内核状态", "未安装"]
+        ]}
+      />
+      <SectionNote>当前版本仅为项目框架，业务功能将在后续版本逐步实现。</SectionNote>
+    </>
+  );
+}
+
+function CollectorPage() {
+  return (
+    <>
+      <div className="action-row">
+        <button onClick={notifyPlaceholder}>自动采集开关，占位</button>
+        <button onClick={notifyPlaceholder}>手动采集按钮，占位</button>
+      </div>
+      <InfoGrid
+        items={[
+          ["当前采集批次", "暂无"],
+          ["本批次发现节点数", "0"],
+          ["新增节点数", "0"],
+          ["重复节点数", "0"],
+          ["解析失败数", "0"],
+          ["地区统计", "香港、日本、美国、新加坡、台湾、韩国、其他"]
+        ]}
+      />
+      <SectionNote>GitHub 采集逻辑将在后续版本实现。</SectionNote>
+    </>
+  );
+}
+
+function DetectionPage() {
+  return (
+    <>
+      <InfoGrid
+        items={[
+          ["待检测", "0"],
+          ["检测中", "0"],
+          ["可用", "0"],
+          ["不可用", "0"],
+          ["当前检测内核", "未选择"],
+          ["最近检测时间", "暂无"]
+        ]}
+      />
+      <SectionNote>节点检测将在后续版本实现，第一目标是判断可用 / 不可用，不纠结延迟。</SectionNote>
+    </>
+  );
+}
+
+function SubscriptionPage() {
+  return (
+    <>
+      <InfoGrid
+        items={[
+          ["自动刷新间隔", "5 分钟"],
+          ["目标订阅节点数", "20"],
+          ["最低保底节点数", "10"],
+          ["订阅有效期", "15 天"],
+          ["raw 订阅链接", "未生成"],
+          ["base64 订阅链接", "未生成"],
+          ["领取页链接", "未生成"],
+          ["Telegram Bot 只读接口", "未生成"],
+          ["二维码", "未生成"]
+        ]}
+      />
+      <div className="action-row">
+        <button onClick={notifyPlaceholder}>复制 raw 链接，占位按钮</button>
+        <button onClick={notifyPlaceholder}>复制 base64 链接，占位按钮</button>
+        <button onClick={notifyPlaceholder}>复制二维码，占位按钮</button>
+        <button onClick={notifyPlaceholder}>下载二维码，占位按钮</button>
+        <button onClick={notifyPlaceholder}>手动刷新订阅，占位按钮</button>
+      </div>
+      <SectionNote>本软件只负责维护订阅，不负责多平台自动分发。</SectionNote>
+    </>
+  );
+}
+
+function CoresPage() {
+  const rows = ["Mihomo", "sing-box", "Xray-core"];
+
+  return (
+    <>
+      <div className="table-panel">
+        <table>
+          <thead>
+            <tr>
+              <th>内核</th>
+              <th>版本选择</th>
+              <th>操作</th>
+              <th>当前版本</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((name) => (
+              <tr key={name}>
+                <td>{name}</td>
+                <td>
+                  <select onChange={notifyPlaceholder} defaultValue="">
+                    <option value="">选择版本，占位下拉框</option>
+                  </select>
+                </td>
+                <td>
+                  <button onClick={notifyPlaceholder}>安装/更新，占位按钮</button>
+                </td>
+                <td>未安装</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <SectionNote>内核仅用于节点可用性检测，不作为公开代理服务运行。第一阶段只支持 Linux amd64。</SectionNote>
+    </>
+  );
+}
+
+function StatsPage() {
+  return (
+    <>
+      <InfoGrid
+        items={[
+          ["节点池总数", "0"],
+          ["可用节点数", "0"],
+          ["不可用节点数", "0"],
+          ["今日新增节点", "0"],
+          ["今日检测通过", "0"],
+          ["最近 5 分钟替换数量", "0"],
+          ["按地区统计", "暂无数据"],
+          ["按协议统计", "暂无数据"],
+          ["按来源统计", "暂无数据"],
+          ["GitHub 请求次数", "0"],
+          ["GitHub 剩余额度", "未接入"],
+          ["订阅访问次数", "0"],
+          ["Bot 接口读取次数", "0"]
+        ]}
+      />
+      <SectionNote>统计数据以节点池质量为核心，不统计外部分发数据。</SectionNote>
+    </>
+  );
+}
+
+function SettingsPage() {
+  return (
+    <>
+      <InfoGrid
+        items={[
+          ["全自动模式", "关闭，占位"],
+          ["GitHub Token", "未配置，占位，不显示真实值"],
+          ["GitHub 搜索间隔", "10 秒"],
+          ["每分钟最大搜索请求", "6"],
+          ["每小时最大搜索请求", "300"],
+          ["订阅刷新间隔", "5 分钟"],
+          ["订阅有效期", "15 天"],
+          ["目标订阅节点数", "20"],
+          ["最低订阅节点数", "10"],
+          ["首选检测内核", "Xray-core"]
+        ]}
+      />
+      <div className="action-row">
+        <button onClick={notifyPlaceholder}>保存设置，占位按钮</button>
+      </div>
+      <SectionNote>本页面当前只展示默认配置，保存功能后续实现。</SectionNote>
+    </>
+  );
+}
+
+function App() {
+  const [activeKey, setActiveKey] = useState<MenuKey>("overview");
+
+  const activeMenu = useMemo(
+    () => menus.find((item) => item.key === activeKey) || menus[0],
+    [activeKey]
+  );
+
+  const page = {
+    overview: <OverviewPage />,
+    collector: <CollectorPage />,
+    detection: <DetectionPage />,
+    subscription: <SubscriptionPage />,
+    cores: <CoresPage />,
+    stats: <StatsPage />,
+    settings: <SettingsPage />
+  }[activeKey];
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-title">华哥自动节点订阅池</span>
+          <span className="brand-version">v0.1.0-skeleton</span>
+        </div>
+        <nav>
+          {menus.map((item) => (
+            <button
+              className={item.key === activeKey ? "nav-item active" : "nav-item"}
+              key={item.key}
+              onClick={() => setActiveKey(item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <main className="main-panel">
+        <header className="topbar">
+          <div>
+            <h1>华哥自动节点订阅池 v0.1.0-skeleton</h1>
+            <p>当前页面：{activeMenu.label}</p>
+          </div>
+          <span className="status-pill">框架版本</span>
+        </header>
+
+        <section className="content-section">
+          <h2>{activeMenu.label}</h2>
+          {page}
+        </section>
+      </main>
+    </div>
+  );
+}
+
+export default App;

@@ -1,0 +1,37 @@
+{
+  "cores": [
+    {
+      "key": "mihomo",
+      "display_name": "Mihomo",
+      "github_owner": "MetaCubeX",
+      "github_repo": "mihomo",
+      "install_dir": "cores/mihomo",
+      "binary_name": "mihomo",
+      "platform": "linux",
+      "arch": "amd64",
+      "enabled": true
+    },
+    {
+      "key": "sing_box",
+      "display_name": "sing-box",
+      "github_owner": "SagerNet",
+      "github_repo": "sing-box",
+      "install_dir": "cores/sing-box",
+      "binary_name": "sing-box",
+      "platform": "linux",
+      "arch": "amd64",
+      "enabled": true
+    },
+    {
+      "key": "xray",
+      "display_name": "Xray-core",
+      "github_owner": "XTLS",
+      "github_repo": "Xray-core",
+      "install_dir": "cores/xray",
+      "binary_name": "xray",
+      "platform": "linux",
+      "arch": "amd64",
+      "enabled": true
+    }
+  ]
+}

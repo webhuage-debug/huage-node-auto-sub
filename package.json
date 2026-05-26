@@ -1,0 +1,18 @@
+{
+  "name": "huage-node-auto-sub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "华哥自动节点订阅池 v0.1.0 项目骨架",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm --workspace apps/api run dev",
+    "build": "npm --workspace apps/web run build && npm --workspace apps/api run build",
+    "start": "npm --workspace apps/api run start"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

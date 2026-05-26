@@ -1,0 +1,13 @@
+services:
+  huage-node-auto-sub:
+    container_name: huage-node-auto-sub
+    image: huage-node-auto-sub-app
+    build:
+      context: .
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      APP_HOST: 0.0.0.0
+      APP_PORT: 3000
+    restart: unless-stopped
