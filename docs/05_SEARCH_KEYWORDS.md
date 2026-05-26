@@ -6,7 +6,9 @@
 
 ## 当前版本范围
 
-当前关键词写入 `config/search_keywords.json`，只用于配置预览。
+当前关键词由 `config/search_keywords.json` 管理，后端采集接口会读取其中的 `github_search_keywords` 执行有限 GitHub 线索搜索。
+
+本版本不会根据 `protocol_keywords` 解析节点，只保留为后续节点解析版本使用。
 
 ## 后续待补充内容
 

@@ -22,6 +22,11 @@ select {
   font: inherit;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 240px 1fr;
@@ -127,6 +132,16 @@ nav {
   margin: 0 0 18px;
 }
 
+.subheading {
+  color: #334155;
+  font-size: 16px;
+  margin: 24px 0 12px;
+}
+
+.subheading:first-child {
+  margin-top: 0;
+}
+
 .info-grid {
   display: grid;
   gap: 12px;
@@ -162,6 +177,10 @@ nav {
   margin-bottom: 18px;
 }
 
+.collector-actions {
+  margin-top: 20px;
+}
+
 .action-row button,
 td button {
   background: #1f5f9f;
@@ -186,6 +205,16 @@ td button:hover {
   line-height: 1.7;
   margin-top: 18px;
   padding: 14px 16px;
+}
+
+.inline-message {
+  background: #eef7ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1d4f91;
+  line-height: 1.6;
+  margin: 8px 0 18px;
+  padding: 12px 14px;
 }
 
 .table-panel {
@@ -224,4 +253,14 @@ select {
   min-height: 38px;
   min-width: 190px;
   padding: 7px 10px;
+}
+
+a {
+  color: #1f5f9f;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
 }

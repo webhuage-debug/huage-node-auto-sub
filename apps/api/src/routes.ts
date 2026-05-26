@@ -2,6 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { appConfig, getConfigDir } from "./config.js";
+import {
+  getCollectorStatus,
+  getLastCollectorResults,
+  runGitHubSearchOnce
+} from "./collector/githubCollector.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -97,4 +102,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       files: summaries
     };
   });
+
+  app.get("/api/collector/status", async () => getCollectorStatus());
+
+  app.post("/api/collector/github/search-once", async (_request, reply) => {
+    return runGitHubSearchOnce(reply);
+  });
+
+  app.get("/api/collector/results", async () => getLastCollectorResults());
 }
