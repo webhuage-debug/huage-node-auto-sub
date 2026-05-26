@@ -69,6 +69,18 @@ v0.4.0 验收项：
 - 检测结束会清理子进程和临时文件。
 - 不生成订阅，不新增菜单，不提交 `cores/` 和 `data/`。
 
+v0.4.2 验收项：
+
+- `/api/status` 返回 `version=v0.4.2`。
+- VLESS TLS / WS / Reality 常见参数可以生成 Xray outbound。
+- Trojan TLS / WS / gRPC 常见参数可以生成 Xray outbound。
+- Shadowsocks 常见 URL 可以生成 Xray outbound。
+- VMess base64 JSON 常见格式可以生成 Xray outbound。
+- 不支持参数返回 `unsupported`，不导致服务崩溃。
+- 检测临时 inbound 只监听 `127.0.0.1`。
+- 前端检测管理页面显示 unsupported 原因提示。
+- 不提交 `cores/`、`data/`，不展示完整 raw 节点。
+
 ## 后续待补充内容
 
 补充 Docker 启动检查、接口测试、页面截图检查和真实业务版本验收项。

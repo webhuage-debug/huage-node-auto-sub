@@ -29,7 +29,7 @@ function safeKill(child: ChildProcessWithoutNullStreams | null): void {
   }
 }
 
-function requestThroughHttpProxy(proxyPort: number, targetUrl: string, timeoutMs: number): Promise<number> {
+function requestThroughSocksProxy(proxyPort: number, targetUrl: string, timeoutMs: number): Promise<number> {
   const startedAt = Date.now();
   const url = new URL(targetUrl);
 
@@ -46,30 +46,40 @@ function requestThroughHttpProxy(proxyPort: number, targetUrl: string, timeoutMs
     });
 
     socket.once("connect", () => {
-      socket.write(`CONNECT ${url.hostname}:443 HTTP/1.1\r\nHost: ${url.hostname}:443\r\n\r\n`);
+      socket.write(Buffer.from([0x05, 0x01, 0x00]));
     });
 
-    let connected = false;
-    let responseBuffer = "";
+    let stage: "greeting" | "connect" | "tls" = "greeting";
 
     socket.on("data", (chunk) => {
-      if (connected) {
+      if (stage === "tls") {
         return;
       }
 
-      responseBuffer += chunk.toString("utf8");
-      if (!responseBuffer.includes("\r\n\r\n")) {
+      if (stage === "greeting") {
+        if (chunk.length < 2 || chunk[0] !== 0x05 || chunk[1] !== 0x00) {
+          clearTimeout(timeout);
+          socket.destroy();
+          reject(new Error("SOCKS 握手失败"));
+          return;
+        }
+
+        const host = Buffer.from(url.hostname);
+        const port = Buffer.alloc(2);
+        port.writeUInt16BE(443, 0);
+        socket.write(Buffer.concat([Buffer.from([0x05, 0x01, 0x00, 0x03, host.length]), host, port]));
+        stage = "connect";
         return;
       }
 
-      if (!responseBuffer.startsWith("HTTP/1.1 200") && !responseBuffer.startsWith("HTTP/1.0 200")) {
+      if (stage === "connect" && (chunk.length < 2 || chunk[1] !== 0x00)) {
         clearTimeout(timeout);
         socket.destroy();
-        reject(new Error("代理连接失败"));
+        reject(new Error("SOCKS 连接目标失败"));
         return;
       }
 
-      connected = true;
+      stage = "tls";
       const secureSocket = tls.connect({
         socket,
         servername: url.hostname
@@ -130,11 +140,32 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
     child = spawn(settings.xrayBinaryPath, ["run", "-config", configPath], {
       stdio: "pipe"
     });
+    let childStartError: Error | null = null;
+    child.once("error", (error) => {
+      childStartError = error;
+    });
     child.stdout.on("data", () => undefined);
     child.stderr.on("data", () => undefined);
 
     await delay(700);
-    const responseMs = await requestThroughHttpProxy(localPort, settings.testUrl, settings.timeoutSeconds * 1000);
+    if (childStartError) {
+      return {
+        nodeId: node.id,
+        status: "error",
+        responseMs: null,
+        failureReason: "Xray 子进程启动失败"
+      };
+    }
+    if (child.exitCode !== null) {
+      return {
+        nodeId: node.id,
+        status: "error",
+        responseMs: null,
+        failureReason: "Xray 子进程提前退出"
+      };
+    }
+
+    const responseMs = await requestThroughSocksProxy(localPort, settings.testUrl, settings.timeoutSeconds * 1000);
 
     return {
       nodeId: node.id,
@@ -144,9 +175,10 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "检测失败";
+    const status = configPath && child ? "unavailable" : "error";
     return {
       nodeId: node.id,
-      status: "unavailable",
+      status,
       responseMs: null,
       failureReason: message
     };

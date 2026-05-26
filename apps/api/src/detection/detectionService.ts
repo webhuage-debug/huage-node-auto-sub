@@ -170,7 +170,8 @@ export async function testOneNodeHandler(request: FastifyRequest, reply: Fastify
     nodeId: result.nodeId,
     status: result.status,
     responseMs: result.responseMs,
-    failureReason: result.failureReason
+    failureReason: result.failureReason,
+    detectionCore: "xray"
   };
 }
 

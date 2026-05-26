@@ -138,7 +138,7 @@ type DetectionHistoryResponse = {
   items: DetectionHistoryItem[];
 };
 
-const appVersion = "v0.4.0";
+const appVersion = "v0.4.2";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -641,6 +641,11 @@ function DetectionPage() {
       </div>
 
       {message ? <div className="inline-message">{message}</div> : null}
+      {(status?.unsupported ?? 0) > 0 ? (
+        <div className="inline-message">
+          当前节点参数暂不支持，可等待后续版本增强兼容性。请在统计数据的最近节点列表查看 failureReason。
+        </div>
+      ) : null}
 
       <h3 className="subheading">最近检测历史</h3>
       <div className="table-panel">

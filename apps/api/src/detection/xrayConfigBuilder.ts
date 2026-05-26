@@ -4,9 +4,32 @@ type BuildResult =
   | { ok: true; outbound: Record<string, unknown> }
   | { ok: false; reason: string };
 
+type ParsedShadowsocks = {
+  method: string;
+  password: string;
+  host: string;
+  port: number;
+};
+
+const supportedNetworks = new Set(["tcp", "ws", "grpc"]);
+const supportedSecurity = new Set(["", "none", "tls", "reality"]);
+const supportedVlessFlows = new Set(["", "xtls-rprx-vision"]);
+const supportedShadowsocksMethods = new Set([
+  "aes-128-gcm",
+  "aes-256-gcm",
+  "chacha20-poly1305",
+  "chacha20-ietf-poly1305",
+  "xchacha20-poly1305",
+  "xchacha20-ietf-poly1305",
+  "2022-blake3-aes-128-gcm",
+  "2022-blake3-aes-256-gcm",
+  "2022-blake3-chacha20-poly1305"
+]);
+
 function decodeBase64Url(value: string): string {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-  return Buffer.from(normalized, "base64").toString("utf8");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  return Buffer.from(padded, "base64").toString("utf8");
 }
 
 function parseUrl(raw: string): URL | null {
@@ -17,12 +40,46 @@ function parseUrl(raw: string): URL | null {
   }
 }
 
-function getStreamSettings(params: URLSearchParams): BuildResult {
-  const network = params.get("type") || params.get("network") || "tcp";
-  const security = params.get("security") || "";
+function firstParam(params: URLSearchParams, names: string[]): string {
+  for (const name of names) {
+    const value = params.get(name);
+    if (value) {
+      return value;
+    }
+  }
+  return "";
+}
 
-  if (network === "grpc" || security === "reality") {
-    return { ok: false, reason: "当前版本暂不支持该节点参数" };
+function booleanParam(value: string): boolean {
+  return ["1", "true", "yes"].includes(value.toLowerCase());
+}
+
+function splitList(value: string): string[] | undefined {
+  if (!value) {
+    return undefined;
+  }
+  return value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function parsePort(value: string): number | null {
+  const port = Number(value);
+  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
+}
+
+function getStreamSettings(params: URLSearchParams, options: { allowReality: boolean }): BuildResult {
+  const network = firstParam(params, ["type", "network"]) || "tcp";
+  const security = firstParam(params, ["security", "tls"]) || "";
+
+  if (!supportedNetworks.has(network)) {
+    return { ok: false, reason: `暂不支持该 transport：${network}` };
+  }
+
+  if (!supportedSecurity.has(security)) {
+    return { ok: false, reason: `暂不支持该 security：${security}` };
+  }
+
+  if (security === "reality" && !options.allowReality) {
+    return { ok: false, reason: "当前协议暂不支持 Reality 参数" };
   }
 
   const streamSettings: Record<string, unknown> = {
@@ -30,31 +87,75 @@ function getStreamSettings(params: URLSearchParams): BuildResult {
   };
 
   if (security === "tls") {
+    const alpn = splitList(firstParam(params, ["alpn"]));
     streamSettings.security = "tls";
     streamSettings.tlsSettings = {
-      serverName: params.get("sni") || params.get("host") || undefined,
-      allowInsecure: false
+      serverName: firstParam(params, ["sni", "serverName", "host"]) || undefined,
+      fingerprint: firstParam(params, ["fp", "fingerprint"]) || undefined,
+      alpn,
+      allowInsecure: booleanParam(firstParam(params, ["allowInsecure"]))
+    };
+  }
+
+  if (security === "reality") {
+    const publicKey = firstParam(params, ["pbk", "publicKey"]);
+    if (!publicKey) {
+      return { ok: false, reason: "Reality 缺少 publicKey" };
+    }
+    streamSettings.security = "reality";
+    streamSettings.realitySettings = {
+      serverName: firstParam(params, ["sni", "serverName"]) || undefined,
+      fingerprint: firstParam(params, ["fp", "fingerprint"]) || undefined,
+      publicKey,
+      shortId: firstParam(params, ["sid", "shortId"]) || undefined,
+      spiderX: firstParam(params, ["spx", "spiderX"]) || undefined
     };
   }
 
   if (network === "ws") {
-    const host = params.get("host");
+    const host = firstParam(params, ["host", "authority"]);
     streamSettings.wsSettings = {
-      path: params.get("path") || "/",
+      path: firstParam(params, ["path"]) || "/",
       headers: host ? { Host: host } : undefined
+    };
+  }
+
+  if (network === "grpc") {
+    const authority = firstParam(params, ["authority", "host"]);
+    streamSettings.grpcSettings = {
+      serviceName: firstParam(params, ["serviceName", "service", "path"]) || "",
+      authority: authority || undefined
     };
   }
 
   return { ok: true, outbound: streamSettings };
 }
 
+function requireHostPort(url: URL): { host: string; port: number } | { reason: string } {
+  const port = parsePort(url.port);
+  if (!url.hostname || !port) {
+    return { reason: "缺少 server 或 port" };
+  }
+  return { host: url.hostname, port };
+}
+
 function buildVless(raw: string): BuildResult {
   const url = parseUrl(raw);
-  if (!url || !url.username || !url.hostname || !url.port) {
-    return { ok: false, reason: "当前版本暂不支持该节点参数" };
+  if (!url || !url.username) {
+    return { ok: false, reason: "缺少 VLESS uuid" };
   }
 
-  const stream = getStreamSettings(url.searchParams);
+  const hostPort = requireHostPort(url);
+  if ("reason" in hostPort) {
+    return { ok: false, reason: hostPort.reason };
+  }
+
+  const flow = firstParam(url.searchParams, ["flow"]);
+  if (!supportedVlessFlows.has(flow)) {
+    return { ok: false, reason: "暂不支持该 VLESS flow" };
+  }
+
+  const stream = getStreamSettings(url.searchParams, { allowReality: true });
   if (!stream.ok) {
     return stream;
   }
@@ -66,13 +167,13 @@ function buildVless(raw: string): BuildResult {
       settings: {
         vnext: [
           {
-            address: url.hostname,
-            port: Number(url.port),
+            address: hostPort.host,
+            port: hostPort.port,
             users: [
               {
                 id: decodeURIComponent(url.username),
-                encryption: url.searchParams.get("encryption") || "none",
-                flow: url.searchParams.get("flow") || undefined
+                encryption: firstParam(url.searchParams, ["encryption"]) || "none",
+                flow: flow || undefined
               }
             ]
           }
@@ -85,11 +186,16 @@ function buildVless(raw: string): BuildResult {
 
 function buildTrojan(raw: string): BuildResult {
   const url = parseUrl(raw);
-  if (!url || !url.username || !url.hostname || !url.port) {
-    return { ok: false, reason: "当前版本暂不支持该节点参数" };
+  if (!url || !url.username) {
+    return { ok: false, reason: "缺少 Trojan password" };
   }
 
-  const stream = getStreamSettings(url.searchParams);
+  const hostPort = requireHostPort(url);
+  if ("reason" in hostPort) {
+    return { ok: false, reason: hostPort.reason };
+  }
+
+  const stream = getStreamSettings(url.searchParams, { allowReality: false });
   if (!stream.ok) {
     return stream;
   }
@@ -101,8 +207,8 @@ function buildTrojan(raw: string): BuildResult {
       settings: {
         servers: [
           {
-            address: url.hostname,
-            port: Number(url.port),
+            address: hostPort.host,
+            port: hostPort.port,
             password: decodeURIComponent(url.username)
           }
         ]
@@ -112,37 +218,86 @@ function buildTrojan(raw: string): BuildResult {
   };
 }
 
-function parseShadowsocksUserInfo(url: URL): { method: string; password: string } | null {
-  const direct = `${url.username}${url.password ? `:${url.password}` : ""}`;
-  const decodedDirect = decodeURIComponent(direct);
+function parseHostPort(value: string): { host: string; port: number } | null {
+  const bracketMatch = value.match(/^\[([^\]]+)\]:(\d+)$/);
+  if (bracketMatch) {
+    const port = parsePort(bracketMatch[2]);
+    return port ? { host: bracketMatch[1], port } : null;
+  }
 
-  if (decodedDirect.includes(":")) {
-    const [method, ...passwordParts] = decodedDirect.split(":");
-    return { method, password: passwordParts.join(":") };
+  const lastColon = value.lastIndexOf(":");
+  if (lastColon < 1) {
+    return null;
+  }
+  const host = value.slice(0, lastColon);
+  const port = parsePort(value.slice(lastColon + 1));
+  return host && port ? { host, port } : null;
+}
+
+function parseMethodPassword(value: string): { method: string; password: string } | null {
+  const firstColon = value.indexOf(":");
+  if (firstColon < 1) {
+    return null;
+  }
+  return {
+    method: decodeURIComponent(value.slice(0, firstColon)),
+    password: decodeURIComponent(value.slice(firstColon + 1))
+  };
+}
+
+function parseShadowsocksRaw(raw: string): ParsedShadowsocks | null {
+  const withoutProtocol = raw.replace(/^ss:\/\//i, "");
+  const withoutRemark = withoutProtocol.split("#")[0] || "";
+  const withoutQuery = withoutRemark.split("?")[0] || "";
+  const decodedInput = decodeURIComponent(withoutQuery);
+
+  if (decodedInput.includes("@")) {
+    const atIndex = decodedInput.lastIndexOf("@");
+    const userPart = decodedInput.slice(0, atIndex);
+    const hostPart = decodedInput.slice(atIndex + 1);
+    const hostPort = parseHostPort(hostPart);
+    if (!hostPort) {
+      return null;
+    }
+
+    const direct = parseMethodPassword(userPart);
+    if (direct) {
+      return { ...direct, ...hostPort };
+    }
+
+    try {
+      const decodedUser = decodeBase64Url(userPart);
+      const parsed = parseMethodPassword(decodedUser);
+      return parsed ? { ...parsed, ...hostPort } : null;
+    } catch {
+      return null;
+    }
   }
 
   try {
-    const decoded = decodeBase64Url(url.username);
-    const [method, ...passwordParts] = decoded.split(":");
-    if (method && passwordParts.length > 0) {
-      return { method, password: passwordParts.join(":") };
+    const decoded = decodeBase64Url(decodedInput);
+    const atIndex = decoded.lastIndexOf("@");
+    if (atIndex < 0) {
+      return null;
     }
+    const userPart = decoded.slice(0, atIndex);
+    const hostPart = decoded.slice(atIndex + 1);
+    const parsed = parseMethodPassword(userPart);
+    const hostPort = parseHostPort(hostPart);
+    return parsed && hostPort ? { ...parsed, ...hostPort } : null;
   } catch {
     return null;
   }
-
-  return null;
 }
 
 function buildShadowsocks(raw: string): BuildResult {
-  const url = parseUrl(raw);
-  if (!url || !url.hostname || !url.port) {
-    return { ok: false, reason: "当前版本暂不支持该节点参数" };
+  const parsed = parseShadowsocksRaw(raw);
+  if (!parsed) {
+    return { ok: false, reason: "Shadowsocks URL 解析失败" };
   }
 
-  const userInfo = parseShadowsocksUserInfo(url);
-  if (!userInfo) {
-    return { ok: false, reason: "当前版本暂不支持该节点参数" };
+  if (!supportedShadowsocksMethods.has(parsed.method)) {
+    return { ok: false, reason: "Shadowsocks method 暂不支持" };
   }
 
   return {
@@ -152,10 +307,10 @@ function buildShadowsocks(raw: string): BuildResult {
       settings: {
         servers: [
           {
-            address: url.hostname,
-            port: Number(url.port),
-            method: userInfo.method,
-            password: userInfo.password
+            address: parsed.host,
+            port: parsed.port,
+            method: parsed.method,
+            password: parsed.password
           }
         ]
       }
@@ -163,30 +318,70 @@ function buildShadowsocks(raw: string): BuildResult {
   };
 }
 
+function valueOf(config: Record<string, unknown>, key: string): string {
+  const value = config[key];
+  return value === undefined || value === null ? "" : String(value);
+}
+
+function streamSettingsFromVmess(config: Record<string, unknown>): BuildResult {
+  const network = valueOf(config, "net") || "tcp";
+  if (!supportedNetworks.has(network)) {
+    return { ok: false, reason: `暂不支持该 transport：${network}` };
+  }
+
+  const streamSettings: Record<string, unknown> = {
+    network
+  };
+  const tls = valueOf(config, "tls");
+  if (tls && tls !== "none") {
+    if (tls !== "tls") {
+      return { ok: false, reason: `暂不支持该 VMess tls：${tls}` };
+    }
+    streamSettings.security = "tls";
+    streamSettings.tlsSettings = {
+      serverName: valueOf(config, "sni") || valueOf(config, "host") || undefined,
+      fingerprint: valueOf(config, "fp") || undefined,
+      alpn: splitList(valueOf(config, "alpn")),
+      allowInsecure: false
+    };
+  }
+
+  if (network === "ws") {
+    const host = valueOf(config, "host");
+    streamSettings.wsSettings = {
+      path: valueOf(config, "path") || "/",
+      headers: host ? { Host: host } : undefined
+    };
+  }
+
+  if (network === "grpc") {
+    streamSettings.grpcSettings = {
+      serviceName: valueOf(config, "path") || valueOf(config, "serviceName") || "",
+      authority: valueOf(config, "host") || undefined
+    };
+  }
+
+  return { ok: true, outbound: streamSettings };
+}
+
 function buildVmess(raw: string): BuildResult {
   try {
     const encoded = raw.replace(/^vmess:\/\//i, "");
-    const config = JSON.parse(decodeBase64Url(encoded)) as Record<string, string | number | undefined>;
-    const network = String(config.net || "tcp");
-    const tls = String(config.tls || "");
+    const config = JSON.parse(decodeBase64Url(encoded)) as Record<string, unknown>;
+    const address = valueOf(config, "add");
+    const port = parsePort(valueOf(config, "port"));
+    const id = valueOf(config, "id");
 
-    if (network === "grpc" || String(config.type || "") === "grpc") {
-      return { ok: false, reason: "当前版本暂不支持该节点参数" };
+    if (!address || !port) {
+      return { ok: false, reason: "缺少 server 或 port" };
+    }
+    if (!id) {
+      return { ok: false, reason: "缺少 VMess id" };
     }
 
-    const streamSettings: Record<string, unknown> = { network };
-    if (tls === "tls") {
-      streamSettings.security = "tls";
-      streamSettings.tlsSettings = {
-        serverName: config.sni || config.host || undefined,
-        allowInsecure: false
-      };
-    }
-    if (network === "ws") {
-      streamSettings.wsSettings = {
-        path: config.path || "/",
-        headers: config.host ? { Host: config.host } : undefined
-      };
+    const stream = streamSettingsFromVmess(config);
+    if (!stream.ok) {
+      return stream;
     }
 
     return {
@@ -196,23 +391,23 @@ function buildVmess(raw: string): BuildResult {
         settings: {
           vnext: [
             {
-              address: config.add,
-              port: Number(config.port),
+              address,
+              port,
               users: [
                 {
-                  id: config.id,
-                  alterId: Number(config.aid || 0),
-                  security: config.scy || "auto"
+                  id,
+                  alterId: Number(valueOf(config, "aid") || 0),
+                  security: valueOf(config, "scy") || "auto"
                 }
               ]
             }
           ]
         },
-        streamSettings
+        streamSettings: stream.outbound
       }
     };
   } catch {
-    return { ok: false, reason: "当前版本暂不支持该节点参数" };
+    return { ok: false, reason: "VMess JSON 解析失败" };
   }
 }
 
@@ -245,11 +440,31 @@ export function buildXrayConfig(node: NodePoolItem, localPort: number): BuildRes
         {
           listen: "127.0.0.1",
           port: localPort,
-          protocol: "http",
-          settings: {}
+          protocol: "socks",
+          settings: {
+            udp: false,
+            auth: "noauth"
+          },
+          sniffing: {
+            enabled: false
+          }
         }
       ],
-      outbounds: [outbound.outbound]
+      outbounds: [
+        outbound.outbound,
+        {
+          protocol: "freedom",
+          tag: "direct"
+        },
+        {
+          protocol: "blackhole",
+          tag: "blocked"
+        }
+      ],
+      routing: {
+        domainStrategy: "AsIs",
+        rules: []
+      }
     }
   };
 }

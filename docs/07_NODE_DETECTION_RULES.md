@@ -22,6 +22,14 @@ v0.4.0 增加 Xray-core 基础检测：
 - 检测字段写入节点池：`lastTestedAt`、`detectionCore`、`responseMs`、`failureReason`、`testCount`、`successCount`、`failCount`。
 - 当前只支持 Xray-core，不支持 sing-box / Mihomo。
 
+v0.4.2 增强解析边界：
+
+- VLESS：支持 `security=none/tls/reality`，支持 `type=tcp/ws/grpc`，Reality 映射 `sni/fp/pbk/publicKey/sid/shortId/spiderX`，常见 `flow=xtls-rprx-vision` 可用。
+- Trojan：支持 `security=none/tls`，支持 `type=tcp/ws/grpc`，TLS 映射 `sni/fp/alpn/allowInsecure`。
+- Shadowsocks：支持常见 `ss://base64(method:password@host:port)`、`ss://method:password@host:port`、`ss://base64(method:password)@host:port`。
+- VMess：支持 `vmess://base64(JSON)`，解析 `add/port/id/aid/net/type/host/path/tls/sni/alpn/fp`。
+- 不支持的 flow、transport、method 或缺失 host/port 时返回 `unsupported` 和简洁原因。
+
 ## 后续待补充内容
 
 补充更完整的协议参数支持、检测失败分类、内核安装管理和检测队列优化。

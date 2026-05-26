@@ -4,7 +4,7 @@
 
 ## 当前版本
 
-当前版本为 `v0.4.0`，已经完成项目骨架、GitHub 线索搜索、节点解析、本地 JSON 节点池基础、节点池清理，以及 Xray-core 基础检测框架。
+当前版本为 `v0.4.2`，已经完成项目骨架、GitHub 线索搜索、节点解析、本地 JSON 节点池基础、节点池清理，以及 Xray-core 基础检测兼容增强。
 
 `v0.2.0` 在骨架基础上增加 GitHub 公开线索采集链路：
 
@@ -48,6 +48,17 @@
 
 当前版本不会自动下载 Xray-core。需要将 Xray-core 放到 `cores/xray/xray`，或通过 `XRAY_BINARY_PATH` 指定路径。当前版本不生成订阅。
 
+`v0.4.2` 实现：
+
+- 增强 Xray 节点参数兼容
+- 增强 VLESS Reality / TLS / WS / gRPC 支持
+- 增强 Trojan TLS / WS / gRPC 支持
+- 增强 Shadowsocks URL 解析
+- 增强 VMess base64 JSON 解析
+- 不支持参数返回 unsupported，不导致服务崩溃
+
+当前版本仍不生成订阅。当前版本只做 Xray-core 检测兼容增强。
+
 ## 本地开发命令
 
 ```bash
@@ -73,6 +84,7 @@ Docker Compose 预留给后续 VPS 部署使用，服务名、容器名和镜像
 - `v0.3.0`：节点解析与节点池
 - `v0.3.1`：节点池清理与 UI 小修
 - `v0.4.0`：Xray-core 可用性检测
+- `v0.4.2`：Xray 节点参数兼容增强
 - `v0.5.0`：自动订阅刷新
 - `v0.6.0`：二维码和订阅有效期
 - `v0.7.0`：统计面板完善
