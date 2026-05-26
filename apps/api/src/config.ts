@@ -16,7 +16,7 @@ export const appConfig: AppConfig = {
   host: process.env.APP_HOST || "0.0.0.0",
   port: Number(process.env.APP_PORT || 3000),
   name: "华哥自动节点订阅池",
-  version: "v0.1.0-skeleton"
+  version: "v0.3.0"
 };
 
 export function findProjectFile(...segments: string[]): string {
@@ -36,4 +36,12 @@ export function getWebDistDir(): string {
 
 export function getConfigDir(): string {
   return findProjectFile("config");
+}
+
+export function resolveProjectPath(value: string): string {
+  if (path.isAbsolute(value)) {
+    return value;
+  }
+
+  return path.resolve(process.cwd(), value);
 }

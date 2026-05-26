@@ -14,5 +14,11 @@
     "timeout_seconds": 10,
     "max_concurrent": 3,
     "judge_latency": false
+  },
+  "nodePool": {
+    "storage": "json",
+    "defaultStatus": "untested",
+    "defaultRegion": "未知",
+    "maxListLimit": 200
   }
 }

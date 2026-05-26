@@ -16,7 +16,6 @@ type MenuItem = {
 
 type CollectorStatus = {
   enabled: boolean;
-  mode: string;
   keywordCount: number;
   requestIntervalSeconds: number;
   maxRequestsPerMinute: number;
@@ -48,6 +47,59 @@ type CollectorResultsResponse = {
   results: CollectorResult[];
 };
 
+type NodePoolStatus = {
+  ok: boolean;
+  total: number;
+  untested: number;
+  available: number;
+  unavailable: number;
+  protocolStats: Record<string, number>;
+  sourceStats: Record<string, number>;
+  regionStats: Record<string, number>;
+  lastUpdatedAt: string | null;
+};
+
+type NodePoolItem = {
+  id: string;
+  protocol: string;
+  masked: string;
+  sourceType: string;
+  sourceRepository: string | null;
+  sourcePath: string;
+  sourceUrl: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  seenCount: number;
+  status: string;
+  region: string;
+  remark: string;
+};
+
+type NodeListResponse = {
+  ok: boolean;
+  total: number;
+  items: NodePoolItem[];
+};
+
+type ParseHistoryItem = {
+  ranAt: string;
+  sourceType: string;
+  processedSources: number;
+  fetchedFiles: number;
+  found: number;
+  inserted: number;
+  duplicated: number;
+  rateLimited: boolean;
+  lastError: string | null;
+};
+
+type ParseHistoryResponse = {
+  ok: boolean;
+  items: ParseHistoryItem[];
+};
+
+const appVersion = "v0.3.0";
+
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
   { key: "collector", label: "采集管理" },
@@ -76,6 +128,16 @@ function formatDate(value: string | null) {
   return new Date(value).toLocaleString("zh-CN");
 }
 
+function formatStats(stats: Record<string, number> | undefined) {
+  if (!stats || Object.keys(stats).length === 0) {
+    return "暂无数据";
+  }
+
+  return Object.entries(stats)
+    .map(([key, value]) => `${key}：${value}`)
+    .join("，");
+}
+
 function InfoGrid({ items }: { items: Array<[string, string]> }) {
   return (
     <div className="info-grid">
@@ -93,23 +155,78 @@ function SectionNote({ children }: { children: string }) {
   return <div className="section-note">{children}</div>;
 }
 
+function NodeListTable({ nodes }: { nodes: NodePoolItem[] }) {
+  return (
+    <div className="table-panel">
+      <table>
+        <thead>
+          <tr>
+            <th>协议</th>
+            <th>脱敏节点</th>
+            <th>来源</th>
+            <th>仓库</th>
+            <th>状态</th>
+            <th>首次发现时间</th>
+            <th>最近发现时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {nodes.length === 0 ? (
+            <tr>
+              <td colSpan={7}>暂无节点池数据</td>
+            </tr>
+          ) : (
+            nodes.map((node) => (
+              <tr key={node.id}>
+                <td>{node.protocol}</td>
+                <td className="masked-node">{node.masked}</td>
+                <td>{node.sourceType}</td>
+                <td>{node.sourceRepository || "-"}</td>
+                <td>{node.status}</td>
+                <td>{formatDate(node.firstSeenAt)}</td>
+                <td>{formatDate(node.lastSeenAt)}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+async function fetchNodePoolStatus(): Promise<NodePoolStatus> {
+  const response = await fetch("/api/node-pool/status");
+  if (!response.ok) {
+    throw new Error("节点池状态读取失败");
+  }
+  return response.json();
+}
+
+async function fetchNodeList(): Promise<NodeListResponse> {
+  const response = await fetch("/api/node-pool/nodes?limit=50");
+  if (!response.ok) {
+    throw new Error("节点列表读取失败");
+  }
+  return response.json();
+}
+
 function OverviewPage() {
   return (
     <>
       <InfoGrid
         items={[
           ["系统名称", "华哥自动节点订阅池"],
-          ["当前版本", "v0.1.0-skeleton"],
+          ["当前版本", appVersion],
           ["自动模式", "未启用"],
           ["节点池总数", "0"],
           ["可用节点数", "0"],
           ["当前订阅输出", "0"],
           ["最近订阅刷新", "暂无"],
-          ["GitHub 限流状态", "未接入"],
+          ["GitHub 限流状态", "已接入状态展示"],
           ["内核状态", "未安装"]
         ]}
       />
-      <SectionNote>当前版本仅为项目框架，业务功能将在后续版本逐步实现。</SectionNote>
+      <SectionNote>当前版本已支持节点解析与本地 JSON 节点池，但不检测可用性，不生成订阅。</SectionNote>
     </>
   );
 }
@@ -117,26 +234,36 @@ function OverviewPage() {
 function CollectorPage() {
   const [status, setStatus] = useState<CollectorStatus | null>(null);
   const [results, setResults] = useState<CollectorResult[]>([]);
-  const [lastResultCount, setLastResultCount] = useState(0);
+  const [nodeStatus, setNodeStatus] = useState<NodePoolStatus | null>(null);
+  const [parseHistory, setParseHistory] = useState<ParseHistoryItem[]>([]);
+  const [manualText, setManualText] = useState("");
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
+  const [parsingGithub, setParsingGithub] = useState(false);
+  const [importingText, setImportingText] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  const latestParse = parseHistory[0] || null;
+
   const loadCollectorData = useCallback(async () => {
-    const [statusResponse, resultsResponse] = await Promise.all([
+    const [statusResponse, resultsResponse, nodePoolStatus, historyResponse] = await Promise.all([
       fetch("/api/collector/status"),
-      fetch("/api/collector/results")
+      fetch("/api/collector/results"),
+      fetchNodePoolStatus(),
+      fetch("/api/node-pool/parse-history")
     ]);
 
-    if (!statusResponse.ok || !resultsResponse.ok) {
+    if (!statusResponse.ok || !resultsResponse.ok || !historyResponse.ok) {
       throw new Error("采集状态读取失败");
     }
 
     const statusData = (await statusResponse.json()) as CollectorStatus;
     const resultsData = (await resultsResponse.json()) as CollectorResultsResponse;
+    const historyData = (await historyResponse.json()) as ParseHistoryResponse;
     setStatus(statusData);
     setResults(resultsData.results || []);
-    setLastResultCount(resultsData.resultCount || 0);
+    setNodeStatus(nodePoolStatus);
+    setParseHistory(historyData.items || []);
   }, []);
 
   useEffect(() => {
@@ -170,8 +297,62 @@ function CollectorPage() {
     }
   }
 
+  async function handleParseGithubResults() {
+    setParsingGithub(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/node-pool/parse-last-github-results", {
+        method: "POST"
+      });
+      const payload = await response.json();
+
+      if (!response.ok || payload.ok === false) {
+        throw new Error(payload.error || "解析最近 GitHub 线索失败");
+      }
+
+      setMessage(`解析完成：发现 ${payload.found}，新增 ${payload.inserted}，重复 ${payload.duplicated}。`);
+      await loadCollectorData();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "解析最近 GitHub 线索失败");
+    } finally {
+      setParsingGithub(false);
+    }
+  }
+
+  async function handleImportText() {
+    setImportingText(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/node-pool/import-text", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text: manualText,
+          sourceName: "manual-test"
+        })
+      });
+      const payload = await response.json();
+
+      if (!response.ok || payload.ok === false) {
+        throw new Error(payload.error || "手动文本解析失败");
+      }
+
+      setMessage(`手动解析完成：发现 ${payload.found}，新增 ${payload.inserted}，重复 ${payload.duplicated}。`);
+      setManualText("");
+      await loadCollectorData();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "手动文本解析失败");
+    } finally {
+      setImportingText(false);
+    }
+  }
+
   if (loading && !status) {
-    return <SectionNote>正在读取采集配置和状态...</SectionNote>;
+    return <SectionNote>正在读取采集配置和节点池状态...</SectionNote>;
   }
 
   return (
@@ -194,7 +375,7 @@ function CollectorPage() {
           ["关键词总数", String(status?.keywordCount ?? 0)],
           ["当前关键词来源", "config/search_keywords.json"],
           ["本轮请求次数", String(status?.requestCountThisRun ?? 0)],
-          ["最近结果数量", String(status?.lastResultCount ?? lastResultCount)]
+          ["最近线索数量", String(status?.lastResultCount ?? results.length)]
         ]}
       />
 
@@ -253,25 +434,67 @@ function CollectorPage() {
         </table>
       </div>
 
-      <SectionNote>当前版本只搜索 GitHub 线索，不解析节点、不检测节点、不生成订阅。</SectionNote>
+      <h3 className="subheading">节点解析</h3>
+      <InfoGrid
+        items={[
+          ["最近 GitHub 线索数量", String(results.length)],
+          ["节点池总数", String(nodeStatus?.total ?? 0)],
+          ["待检测节点数", String(nodeStatus?.untested ?? 0)],
+          ["最近一次解析时间", formatDate(latestParse?.ranAt || null)],
+          [
+            "最近一次解析结果",
+            latestParse ? `发现 ${latestParse.found} / 新增 ${latestParse.inserted} / 重复 ${latestParse.duplicated}` : "暂无"
+          ]
+        ]}
+      />
+      <div className="action-row collector-actions">
+        <button disabled={parsingGithub} onClick={handleParseGithubResults}>
+          {parsingGithub ? "正在解析..." : "解析最近 GitHub 线索"}
+        </button>
+      </div>
+
+      <div className="import-box">
+        <label htmlFor="manual-node-text">手动导入文本解析</label>
+        <textarea
+          id="manual-node-text"
+          placeholder="粘贴包含 vmess://、vless://、trojan://、ss://、ssr:// 的文本或 base64 订阅文本"
+          value={manualText}
+          onChange={(event) => setManualText(event.target.value)}
+        />
+        <button disabled={importingText || manualText.trim().length === 0} onClick={handleImportText}>
+          {importingText ? "正在导入..." : "解析手动文本"}
+        </button>
+      </div>
+
+      <SectionNote>当前版本只负责解析节点并放入节点池，不检测可用性，不生成订阅。</SectionNote>
     </>
   );
 }
 
 function DetectionPage() {
+  const [status, setStatus] = useState<NodePoolStatus | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchNodePoolStatus()
+      .then(setStatus)
+      .catch((error: Error) => setMessage(error.message));
+  }, []);
+
   return (
     <>
       <InfoGrid
         items={[
-          ["待检测", "0"],
+          ["待检测", String(status?.untested ?? 0)],
           ["检测中", "0"],
-          ["可用", "0"],
-          ["不可用", "0"],
+          ["可用", String(status?.available ?? 0)],
+          ["不可用", String(status?.unavailable ?? 0)],
           ["当前检测内核", "未选择"],
           ["最近检测时间", "暂无"]
         ]}
       />
-      <SectionNote>节点检测将在后续版本实现，第一目标是判断可用 / 不可用，不纠结延迟。</SectionNote>
+      {message ? <div className="inline-message">{message}</div> : null}
+      <SectionNote>节点可用性检测将在 v0.4.0 实现，当前节点池默认状态为 untested。</SectionNote>
     </>
   );
 }
@@ -299,7 +522,7 @@ function SubscriptionPage() {
         <button onClick={notifyPlaceholder}>下载二维码，占位按钮</button>
         <button onClick={notifyPlaceholder}>手动刷新订阅，占位按钮</button>
       </div>
-      <SectionNote>本软件只负责维护订阅，不负责外部分发。</SectionNote>
+      <SectionNote>本软件只负责维护订阅，不负责外部分发。当前版本不生成订阅。</SectionNote>
     </>
   );
 }
@@ -343,26 +566,38 @@ function CoresPage() {
 }
 
 function StatsPage() {
+  const [status, setStatus] = useState<NodePoolStatus | null>(null);
+  const [nodes, setNodes] = useState<NodePoolItem[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([fetchNodePoolStatus(), fetchNodeList()])
+      .then(([statusData, nodeData]) => {
+        setStatus(statusData);
+        setNodes(nodeData.items || []);
+      })
+      .catch((error: Error) => setMessage(error.message));
+  }, []);
+
   return (
     <>
       <InfoGrid
         items={[
-          ["节点池总数", "0"],
-          ["可用节点数", "0"],
-          ["不可用节点数", "0"],
-          ["今日新增节点", "0"],
-          ["今日检测通过", "0"],
-          ["最近 5 分钟替换数量", "0"],
-          ["按地区统计", "暂无数据"],
-          ["按协议统计", "暂无数据"],
-          ["按来源统计", "暂无数据"],
-          ["GitHub 请求次数", "0"],
-          ["GitHub 剩余额度", "未接入"],
-          ["订阅访问次数", "0"],
-          ["Bot 接口读取次数", "0"]
+          ["节点池总数", String(status?.total ?? 0)],
+          ["待检测节点数", String(status?.untested ?? 0)],
+          ["可用节点数", String(status?.available ?? 0)],
+          ["不可用节点数", String(status?.unavailable ?? 0)],
+          ["按协议统计", formatStats(status?.protocolStats)],
+          ["按来源统计", formatStats(status?.sourceStats)],
+          ["地区统计", formatStats(status?.regionStats)],
+          ["最近更新时间", formatDate(status?.lastUpdatedAt || null)]
         ]}
       />
-      <SectionNote>统计数据以节点池质量为核心，不统计外部分发数据。</SectionNote>
+      {message ? <div className="inline-message">{message}</div> : null}
+
+      <h3 className="subheading">最近节点列表</h3>
+      <NodeListTable nodes={nodes} />
+      <SectionNote>统计数据来自本地 JSON 节点池，页面只展示脱敏节点，不展示 raw 节点。</SectionNote>
     </>
   );
 }
@@ -377,10 +612,10 @@ function SettingsPage() {
           ["GitHub 搜索间隔", "10 秒"],
           ["每分钟最大搜索请求", "6"],
           ["每小时最大搜索请求", "300"],
+          ["节点池存储", "JSON 文件"],
+          ["节点默认状态", "untested"],
+          ["节点默认地区", "未知"],
           ["订阅刷新间隔", "5 分钟"],
-          ["订阅有效期", "15 天"],
-          ["目标订阅节点数", "20"],
-          ["最低订阅节点数", "10"],
           ["首选检测内核", "Xray-core"]
         ]}
       />
@@ -415,7 +650,7 @@ function App() {
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-title">华哥自动节点订阅池</span>
-          <span className="brand-version">v0.1.0-skeleton</span>
+          <span className="brand-version">{appVersion}</span>
         </div>
         <nav>
           {menus.map((item) => (
@@ -433,10 +668,10 @@ function App() {
       <main className="main-panel">
         <header className="topbar">
           <div>
-            <h1>华哥自动节点订阅池 v0.1.0-skeleton</h1>
+            <h1>华哥自动节点订阅池 {appVersion}</h1>
             <p>当前页面：{activeMenu.label}</p>
           </div>
-          <span className="status-pill">框架版本</span>
+          <span className="status-pill">节点池基础版</span>
         </header>
 
         <section className="content-section">

@@ -7,6 +7,13 @@ import {
   getLastCollectorResults,
   runGitHubSearchOnce
 } from "./collector/githubCollector.js";
+import {
+  getNodePoolStatusHandler,
+  getParseHistoryHandler,
+  importTextHandler,
+  listNodesHandler,
+  parseLastGitHubResultsHandler
+} from "./nodePool/nodePoolService.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -82,7 +89,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/status", async () => ({
     name: appConfig.name,
     version: appConfig.version,
-    mode: "skeleton",
+    mode: "node-pool",
     automationEnabled: false
   }));
 
@@ -110,4 +117,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/api/collector/results", async () => getLastCollectorResults());
+
+  app.get("/api/node-pool/status", async () => getNodePoolStatusHandler());
+
+  app.get("/api/node-pool/nodes", async (request) => listNodesHandler(request));
+
+  app.post("/api/node-pool/import-text", async (request, reply) => importTextHandler(request, reply));
+
+  app.post("/api/node-pool/parse-last-github-results", async () => parseLastGitHubResultsHandler());
+
+  app.get("/api/node-pool/parse-history", async () => getParseHistoryHandler());
 }

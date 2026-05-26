@@ -10,4 +10,8 @@ services:
       NODE_ENV: production
       APP_HOST: 0.0.0.0
       APP_PORT: 3000
+      DATA_DIR: /app/data
+      NODE_POOL_FILE: /app/data/node_pool.json
+    volumes:
+      - ./data:/app/data
     restart: unless-stopped
