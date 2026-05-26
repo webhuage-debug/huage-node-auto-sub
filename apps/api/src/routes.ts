@@ -15,6 +15,12 @@ import {
   listNodesHandler,
   parseLastGitHubResultsHandler
 } from "./nodePool/nodePoolService.js";
+import {
+  getDetectionHistoryHandler,
+  getXrayDetectionStatus,
+  testOneNodeHandler,
+  testUntestedNodesHandler
+} from "./detection/detectionService.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -130,4 +136,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/node-pool/parse-history", async () => getParseHistoryHandler());
 
   app.post("/api/node-pool/clear", async () => clearNodePoolHandler());
+
+  app.get("/api/detection/xray/status", async () => getXrayDetectionStatus());
+
+  app.post("/api/detection/xray/test-one", async (request, reply) => testOneNodeHandler(request, reply));
+
+  app.post("/api/detection/xray/test-untested", async (request, reply) => testUntestedNodesHandler(request, reply));
+
+  app.get("/api/detection/history", async () => getDetectionHistoryHandler());
 }

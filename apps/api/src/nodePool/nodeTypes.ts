@@ -2,7 +2,7 @@ export type NodeProtocol = "vmess" | "vless" | "trojan" | "ss" | "ssr";
 
 export type NodeSourceType = "github" | "manual";
 
-export type NodeStatus = "untested" | "available" | "unavailable";
+export type NodeStatus = "untested" | "testing" | "available" | "unavailable" | "unsupported" | "error";
 
 export type NodePoolItem = {
   id: string;
@@ -20,6 +20,13 @@ export type NodePoolItem = {
   status: NodeStatus;
   region: string;
   remark: string;
+  lastTestedAt?: string | null;
+  detectionCore?: string | null;
+  responseMs?: number | null;
+  failureReason?: string | null;
+  testCount?: number;
+  successCount?: number;
+  failCount?: number;
 };
 
 export type PublicNodePoolItem = Omit<NodePoolItem, "raw" | "hash">;

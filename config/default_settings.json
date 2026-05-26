@@ -11,9 +11,16 @@
   },
   "detection": {
     "preferred_core": "xray",
+    "preferredCore": "xray",
+    "testUrl": "https://www.gstatic.com/generate_204",
     "timeout_seconds": 10,
-    "max_concurrent": 3,
-    "judge_latency": false
+    "timeoutSeconds": 10,
+    "max_concurrent": 1,
+    "maxConcurrent": 1,
+    "batchDefaultLimit": 5,
+    "batchMaxLimit": 20,
+    "judge_latency": false,
+    "judgeLatency": false
   },
   "nodePool": {
     "storage": "json",

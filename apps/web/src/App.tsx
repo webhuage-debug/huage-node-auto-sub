@@ -51,8 +51,11 @@ type NodePoolStatus = {
   ok: boolean;
   total: number;
   untested: number;
+  testing: number;
   available: number;
   unavailable: number;
+  unsupported: number;
+  error: number;
   protocolStats: Record<string, number>;
   sourceStats: Record<string, number>;
   regionStats: Record<string, number>;
@@ -73,6 +76,13 @@ type NodePoolItem = {
   status: string;
   region: string;
   remark: string;
+  lastTestedAt?: string | null;
+  detectionCore?: string | null;
+  responseMs?: number | null;
+  failureReason?: string | null;
+  testCount?: number;
+  successCount?: number;
+  failCount?: number;
 };
 
 type NodeListResponse = {
@@ -98,7 +108,37 @@ type ParseHistoryResponse = {
   items: ParseHistoryItem[];
 };
 
-const appVersion = "v0.3.1";
+type XrayDetectionStatus = {
+  ok: boolean;
+  core: string;
+  xrayInstalled: boolean;
+  xrayBinaryPath: string;
+  running: boolean;
+  queueSize: number;
+  testingCount: number;
+  lastRunAt: string | null;
+  lastError: string | null;
+  timeoutSeconds: number;
+  maxConcurrent: number;
+  message: string | null;
+};
+
+type DetectionHistoryItem = {
+  runAt: string;
+  core: string;
+  tested: number;
+  available: number;
+  unavailable: number;
+  unsupported: number;
+  error: number;
+};
+
+type DetectionHistoryResponse = {
+  ok: boolean;
+  items: DetectionHistoryItem[];
+};
+
+const appVersion = "v0.4.0";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -166,14 +206,16 @@ function NodeListTable({ nodes }: { nodes: NodePoolItem[] }) {
             <th>来源</th>
             <th>仓库</th>
             <th>状态</th>
+            <th>响应</th>
+            <th>失败原因</th>
             <th>首次发现时间</th>
-            <th>最近发现时间</th>
+            <th>最近检测时间</th>
           </tr>
         </thead>
         <tbody>
           {nodes.length === 0 ? (
             <tr>
-              <td colSpan={7}>暂无节点池数据</td>
+              <td colSpan={9}>暂无节点池数据</td>
             </tr>
           ) : (
             nodes.map((node) => (
@@ -183,8 +225,10 @@ function NodeListTable({ nodes }: { nodes: NodePoolItem[] }) {
                 <td>{node.sourceType}</td>
                 <td>{node.sourceRepository || "-"}</td>
                 <td>{node.status}</td>
+                <td>{node.responseMs ? `${node.responseMs} ms` : "-"}</td>
+                <td className="wrap-cell">{node.failureReason || "-"}</td>
                 <td>{formatDate(node.firstSeenAt)}</td>
-                <td>{formatDate(node.lastSeenAt)}</td>
+                <td>{formatDate(node.lastTestedAt || null)}</td>
               </tr>
             ))
           )}
@@ -222,6 +266,39 @@ async function clearNodePool(): Promise<{ ok: boolean; cleared: boolean; total: 
   return response.json();
 }
 
+async function fetchXrayStatus(): Promise<XrayDetectionStatus> {
+  const response = await fetch("/api/detection/xray/status");
+  if (!response.ok) {
+    throw new Error("Xray 检测状态读取失败");
+  }
+  return response.json();
+}
+
+async function fetchDetectionHistory(): Promise<DetectionHistoryResponse> {
+  const response = await fetch("/api/detection/history");
+  if (!response.ok) {
+    throw new Error("检测历史读取失败");
+  }
+  return response.json();
+}
+
+async function testUntestedNodes(limit: number) {
+  const response = await fetch("/api/detection/xray/test-untested", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ limit })
+  });
+  const payload = await response.json();
+
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.message || payload.error || "检测失败");
+  }
+
+  return payload;
+}
+
 function OverviewPage() {
   return (
     <>
@@ -238,7 +315,7 @@ function OverviewPage() {
           ["内核状态", "未安装"]
         ]}
       />
-      <SectionNote>当前版本已支持节点解析与本地 JSON 节点池，但不检测可用性，不生成订阅。</SectionNote>
+      <SectionNote>当前版本已支持 Xray-core 基础可用性检测，但不自动下载内核，不生成订阅。</SectionNote>
     </>
   );
 }
@@ -485,28 +562,120 @@ function CollectorPage() {
 
 function DetectionPage() {
   const [status, setStatus] = useState<NodePoolStatus | null>(null);
+  const [xrayStatus, setXrayStatus] = useState<XrayDetectionStatus | null>(null);
+  const [history, setHistory] = useState<DetectionHistoryItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [testingLimit, setTestingLimit] = useState<number | null>(null);
+
+  const loadDetectionData = useCallback(async () => {
+    const [nodeStatus, xrayData, historyData] = await Promise.all([
+      fetchNodePoolStatus(),
+      fetchXrayStatus(),
+      fetchDetectionHistory()
+    ]);
+    setStatus(nodeStatus);
+    setXrayStatus(xrayData);
+    setHistory(historyData.items || []);
+  }, []);
 
   useEffect(() => {
-    fetchNodePoolStatus()
-      .then(setStatus)
-      .catch((error: Error) => setMessage(error.message));
-  }, []);
+    loadDetectionData().catch((error: Error) => setMessage(error.message));
+  }, [loadDetectionData]);
+
+  async function handleTestUntested(limit: number) {
+    setTestingLimit(limit);
+    setMessage(null);
+
+    try {
+      const payload = await testUntestedNodes(limit);
+      setMessage(`检测完成：检测 ${payload.tested} 条，可用 ${payload.available}，不可用 ${payload.unavailable}，暂不支持 ${payload.unsupported}，错误 ${payload.error}。`);
+      await loadDetectionData();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "检测失败");
+      await loadDetectionData().catch(() => undefined);
+    } finally {
+      setTestingLimit(null);
+    }
+  }
+
+  const detectionDisabled = Boolean(testingLimit || xrayStatus?.running || !xrayStatus?.xrayInstalled);
 
   return (
     <>
+      <h3 className="subheading">Xray-core 状态</h3>
       <InfoGrid
         items={[
-          ["待检测", String(status?.untested ?? 0)],
-          ["检测中", "0"],
-          ["可用", String(status?.available ?? 0)],
-          ["不可用", String(status?.unavailable ?? 0)],
-          ["当前检测内核", "未选择"],
-          ["最近检测时间", "暂无"]
+          ["是否已安装", formatBool(Boolean(xrayStatus?.xrayInstalled), "已安装", "未安装")],
+          ["Xray 路径", xrayStatus?.xrayBinaryPath || "/app/cores/xray/xray"],
+          ["是否正在检测", formatBool(Boolean(xrayStatus?.running), "检测中", "未运行")],
+          ["当前队列数量", String(xrayStatus?.queueSize ?? 0)],
+          ["最近检测时间", formatDate(xrayStatus?.lastRunAt || null)],
+          ["最近错误", xrayStatus?.lastError || xrayStatus?.message || "暂无"],
+          ["检测超时", `${xrayStatus?.timeoutSeconds ?? 10} 秒`],
+          ["最大并发", String(xrayStatus?.maxConcurrent ?? 1)]
         ]}
       />
+
+      <h3 className="subheading">节点检测统计</h3>
+      <InfoGrid
+        items={[
+          ["待检测节点数", String(status?.untested ?? 0)],
+          ["检测中节点数", String(status?.testing ?? xrayStatus?.testingCount ?? 0)],
+          ["可用节点数", String(status?.available ?? 0)],
+          ["不可用节点数", String(status?.unavailable ?? 0)],
+          ["暂不支持节点数", String(status?.unsupported ?? 0)],
+          ["错误节点数", String(status?.error ?? 0)]
+        ]}
+      />
+
+      <div className="action-row collector-actions">
+        <button disabled={detectionDisabled} onClick={() => handleTestUntested(1)}>
+          {testingLimit === 1 ? "正在检测..." : "检测 1 条待检测节点"}
+        </button>
+        <button disabled={detectionDisabled} onClick={() => handleTestUntested(5)}>
+          {testingLimit === 5 ? "正在检测..." : "检测 5 条待检测节点"}
+        </button>
+        <button disabled={Boolean(testingLimit)} onClick={() => loadDetectionData()}>
+          刷新检测状态
+        </button>
+      </div>
+
       {message ? <div className="inline-message">{message}</div> : null}
-      <SectionNote>节点可用性检测将在 v0.4.0 实现，当前节点池默认状态为 untested。</SectionNote>
+
+      <h3 className="subheading">最近检测历史</h3>
+      <div className="table-panel">
+        <table>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>检测数量</th>
+              <th>可用</th>
+              <th>不可用</th>
+              <th>暂不支持</th>
+              <th>错误</th>
+            </tr>
+          </thead>
+          <tbody>
+            {history.length === 0 ? (
+              <tr>
+                <td colSpan={6}>暂无检测历史</td>
+              </tr>
+            ) : (
+              history.map((item) => (
+                <tr key={`${item.runAt}-${item.tested}`}>
+                  <td>{formatDate(item.runAt)}</td>
+                  <td>{item.tested}</td>
+                  <td>{item.available}</td>
+                  <td>{item.unavailable}</td>
+                  <td>{item.unsupported}</td>
+                  <td>{item.error}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      <SectionNote>当前版本只支持 Xray-core 基础检测，不支持 sing-box / Mihomo，不生成订阅。</SectionNote>
     </>
   );
 }
@@ -629,8 +798,11 @@ function StatsPage() {
         items={[
           ["节点池总数", String(status?.total ?? 0)],
           ["待检测节点数", String(status?.untested ?? 0)],
+          ["检测中节点数", String(status?.testing ?? 0)],
           ["可用节点数", String(status?.available ?? 0)],
           ["不可用节点数", String(status?.unavailable ?? 0)],
+          ["暂不支持节点数", String(status?.unsupported ?? 0)],
+          ["错误节点数", String(status?.error ?? 0)],
           ["按协议统计", formatStats(status?.protocolStats)],
           ["按来源统计", formatStats(status?.sourceStats)],
           ["地区统计", formatStats(status?.regionStats)],

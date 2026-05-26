@@ -53,6 +53,22 @@ v0.3.1 验收项：
 - 前端和接口不展示完整 raw 节点。
 - 不新增菜单，不做节点检测，不生成订阅。
 
+v0.4.0 验收项：
+
+- `/api/status` 返回 `version=v0.4.0`。
+- `/api/detection/xray/status` 正常返回。
+- Xray 未安装时接口返回明确 JSON，不崩溃。
+- `POST /api/detection/xray/test-one` 可以处理单节点检测请求。
+- `POST /api/detection/xray/test-untested` 可以处理批量检测请求。
+- 检测中不允许重复并发触发。
+- 检测结果会写回节点池状态和检测字段。
+- 状态字段支持 `available`、`unavailable`、`unsupported`、`error`、`untested`。
+- 前端检测管理页面显示 Xray 状态和检测按钮。
+- 前端和接口不展示完整 raw 节点。
+- 临时 Xray inbound 只监听 `127.0.0.1`。
+- 检测结束会清理子进程和临时文件。
+- 不生成订阅，不新增菜单，不提交 `cores/` 和 `data/`。
+
 ## 后续待补充内容
 
 补充 Docker 启动检查、接口测试、页面截图检查和真实业务版本验收项。

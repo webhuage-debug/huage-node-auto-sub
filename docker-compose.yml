@@ -12,6 +12,13 @@ services:
       APP_PORT: 3000
       DATA_DIR: /app/data
       NODE_POOL_FILE: /app/data/node_pool.json
+      XRAY_BINARY_PATH: /app/cores/xray/xray
+      DETECTION_TEST_URL: https://www.gstatic.com/generate_204
+      DETECTION_TIMEOUT_SECONDS: 10
+      DETECTION_MAX_CONCURRENT: 1
+      DETECTION_BATCH_DEFAULT_LIMIT: 5
+      DETECTION_BATCH_MAX_LIMIT: 20
     volumes:
       - ./data:/app/data
+      - ./cores:/app/cores
     restart: unless-stopped

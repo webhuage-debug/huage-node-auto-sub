@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { resolveProjectPath } from "../config.js";
-import type { ImportSummary, NodePoolFile, NodePoolItem, NodeProtocol, NodeSourceType, PublicNodePoolItem } from "./nodeTypes.js";
+import type { ImportSummary, NodePoolFile, NodePoolItem, NodeProtocol, NodeSourceType, NodeStatus, PublicNodePoolItem } from "./nodeTypes.js";
 import { emptyProtocolStats } from "./nodeParser.js";
 
 const defaultFile: NodePoolFile = {
@@ -98,23 +98,29 @@ export async function getNodePoolStatus() {
   };
   const statusStats = {
     untested: 0,
+    testing: 0,
     available: 0,
-    unavailable: 0
+    unavailable: 0,
+    unsupported: 0,
+    error: 0
   };
 
   for (const node of file.nodes) {
     protocolStats[node.protocol] += 1;
     sourceStats[node.sourceType] += 1;
     regionStats[node.region] = (regionStats[node.region] || 0) + 1;
-    statusStats[node.status] += 1;
+    statusStats[node.status] = (statusStats[node.status] || 0) + 1;
   }
 
   return {
     ok: true,
     total: file.nodes.length,
     untested: statusStats.untested,
+    testing: statusStats.testing,
     available: statusStats.available,
     unavailable: statusStats.unavailable,
+    unsupported: statusStats.unsupported,
+    error: statusStats.error,
     protocolStats,
     sourceStats,
     regionStats,
@@ -164,4 +170,68 @@ export async function clearNodePool() {
     total: 0,
     updatedAt
   };
+}
+
+export async function getNodeById(id: string): Promise<NodePoolItem | null> {
+  const file = await readNodePoolFile();
+  return file.nodes.find((node) => node.id === id) || null;
+}
+
+export async function listNodesByStatus(status: NodeStatus, limit: number): Promise<NodePoolItem[]> {
+  const file = await readNodePoolFile();
+  return file.nodes
+    .filter((node) => node.status === status)
+    .slice()
+    .sort((a, b) => a.firstSeenAt.localeCompare(b.firstSeenAt))
+    .slice(0, limit);
+}
+
+export async function updateNodeDetectionResult(
+  id: string,
+  result: {
+    status: NodeStatus;
+    detectionCore: string;
+    responseMs: number | null;
+    failureReason: string | null;
+  }
+): Promise<NodePoolItem | null> {
+  const file = await readNodePoolFile();
+  const node = file.nodes.find((item) => item.id === id);
+
+  if (!node) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const previousTestCount = node.testCount || 0;
+  const previousSuccessCount = node.successCount || 0;
+  const previousFailCount = node.failCount || 0;
+  const success = result.status === "available";
+
+  node.status = result.status;
+  node.lastTestedAt = now;
+  node.detectionCore = result.detectionCore;
+  node.responseMs = result.responseMs;
+  node.failureReason = result.failureReason;
+  node.testCount = previousTestCount + 1;
+  node.successCount = previousSuccessCount + (success ? 1 : 0);
+  node.failCount = previousFailCount + (success ? 0 : 1);
+  file.updatedAt = now;
+
+  await writeNodePoolFile(file);
+  return node;
+}
+
+export async function updateNodeStatus(id: string, status: NodeStatus): Promise<NodePoolItem | null> {
+  const file = await readNodePoolFile();
+  const node = file.nodes.find((item) => item.id === id);
+
+  if (!node) {
+    return null;
+  }
+
+  node.status = status;
+  file.updatedAt = new Date().toISOString();
+  await writeNodePoolFile(file);
+  return node;
 }

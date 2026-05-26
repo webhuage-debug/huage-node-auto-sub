@@ -16,6 +16,8 @@ v0.3.0 不使用数据库，暂用本地 JSON 文件存储节点池。
 
 v0.3.1 清空节点池只重置 `data/node_pool.json` 的 `nodes` 数组，并更新 `updatedAt`，不删除 `data/` 目录，也不删除节点池文件本身。
 
+v0.4.0 检测字段仍写入 JSON 节点池，暂不迁移数据库。新增字段包括 `lastTestedAt`、`detectionCore`、`responseMs`、`failureReason`、`testCount`、`successCount`、`failCount`。
+
 ## 后续待补充内容
 
 如后续节点池规模变大，再评估迁移 SQLite，并补充节点表、来源表、检测记录表、订阅访问记录和迁移方案。
