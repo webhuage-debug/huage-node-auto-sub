@@ -180,6 +180,16 @@ function requestHttpsOverSocket(socket: net.Socket, targetUrl: URL, timeoutMs: n
   );
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return "未知错误";
+}
+
 async function requestThroughSocksProxy(proxyPort: number, targetUrl: string, timeoutMs: number): Promise<number> {
   const url = new URL(targetUrl);
   const targetPort = url.port ? Number(url.port) : 443;
@@ -188,7 +198,7 @@ async function requestThroughSocksProxy(proxyPort: number, targetUrl: string, ti
 }
 
 function normalizeFailureReason(error: unknown): string {
-  const message = error instanceof Error ? error.message : "检测失败";
+  const message = getErrorMessage(error);
   const lower = message.toLowerCase();
 
   if (message.includes("检测 URL 超时") || lower.includes("timeout") || lower.includes("timed out")) {
@@ -264,7 +274,7 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
         nodeId: node.id,
         status: "error",
         responseMs: null,
-        failureReason: `Xray 启动失败：${childStartError.message}`,
+        failureReason: `Xray 启动失败：${getErrorMessage(childStartError)}`,
         debug
       };
     }
