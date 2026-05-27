@@ -22,6 +22,11 @@ import {
   testOneNodeHandler,
   testUntestedNodesHandler
 } from "./detection/detectionService.js";
+import {
+  getSubscriptionStatusHandler,
+  publicSubscriptionHandler,
+  rebuildSubscriptionHandler
+} from "./subscription/subscriptionService.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -139,6 +144,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/node-pool/parse-history", async () => getParseHistoryHandler());
 
   app.post("/api/node-pool/clear", async () => clearNodePoolHandler());
+
+  app.get("/api/subscription/status", async () => getSubscriptionStatusHandler());
+
+  app.post("/api/subscription/rebuild", async () => rebuildSubscriptionHandler());
+
+  app.get("/sub/:token", async (request, reply) => publicSubscriptionHandler(request, reply));
 
   app.get("/api/detection/xray/status", async () => getXrayDetectionStatus());
 

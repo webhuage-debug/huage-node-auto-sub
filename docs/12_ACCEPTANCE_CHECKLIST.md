@@ -114,6 +114,17 @@ v0.4.5 验收项：
 - 前端节点列表提供手动操作按钮，且不展示 raw 节点。
 - 不生成订阅，不新增菜单，不提交 `cores/` 和 `data/`。
 
+v0.5.0 验收项：
+
+- `/api/status` 返回 `version=v0.5.0`。
+- `/api/subscription/status` 正常返回，且不返回 raw 节点或完整订阅内容。
+- `POST /api/subscription/rebuild` 可以生成安全订阅链接。
+- `/sub/:token` 在 token 正确时返回 base64 订阅内容，token 错误时不能访问。
+- 手动确认可用节点可以进入订阅，手动确认不可用节点不能进入订阅。
+- 订阅管理页只显示一个安全订阅链接，不再显示 raw/base64 两个链接。
+- 不做二维码、领取页、Telegram Bot 或自动定时刷新。
+- 不新增菜单，不提交 `cores/` 和 `data/`。
+
 ## 后续待补充内容
 
 补充 Docker 启动检查、接口测试、页面截图检查和真实业务版本验收项。

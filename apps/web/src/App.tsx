@@ -157,7 +157,19 @@ type DetectionHistoryResponse = {
   items: DetectionHistoryItem[];
 };
 
-const appVersion = "v0.4.5";
+type SubscriptionStatus = {
+  ok: boolean;
+  generated: boolean;
+  tokenCreated: boolean;
+  safeSubscriptionUrl: string | null;
+  nodeCount: number;
+  targetNodeCount: number;
+  minNodeCount: number;
+  lastGeneratedAt: string | null;
+  warning: string | null;
+};
+
+const appVersion = "v0.5.0";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -368,6 +380,27 @@ async function fetchXrayStatus(): Promise<XrayDetectionStatus> {
     throw new Error("Xray 检测状态读取失败");
   }
   return response.json();
+}
+
+async function fetchSubscriptionStatus(): Promise<SubscriptionStatus> {
+  const response = await fetch("/api/subscription/status");
+  if (!response.ok) {
+    throw new Error("订阅状态读取失败");
+  }
+  return response.json();
+}
+
+async function rebuildSubscription(): Promise<SubscriptionStatus> {
+  const response = await fetch("/api/subscription/rebuild", {
+    method: "POST"
+  });
+  const payload = await response.json();
+
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.message || payload.error || "生成订阅失败");
+  }
+
+  return payload;
 }
 
 async function fetchDetectionHistory(): Promise<DetectionHistoryResponse> {
@@ -797,29 +830,81 @@ function DetectionPage() {
 }
 
 function SubscriptionPage() {
+  const [status, setStatus] = useState<SubscriptionStatus | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [rebuilding, setRebuilding] = useState(false);
+
+  const safeUrl = status?.safeSubscriptionUrl ? `${window.location.origin}${status.safeSubscriptionUrl}` : "未生成";
+
+  const loadSubscriptionStatus = useCallback(async () => {
+    try {
+      setStatus(await fetchSubscriptionStatus());
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "订阅状态读取失败");
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSubscriptionStatus();
+  }, [loadSubscriptionStatus]);
+
+  async function handleRebuildSubscription() {
+    setRebuilding(true);
+    setMessage(null);
+
+    try {
+      const nextStatus = await rebuildSubscription();
+      setStatus(nextStatus);
+      setMessage("安全订阅已生成/刷新。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "生成订阅失败");
+    } finally {
+      setRebuilding(false);
+    }
+  }
+
+  async function handleCopySafeLink() {
+    if (!status?.safeSubscriptionUrl) {
+      setMessage("请先生成安全订阅链接。");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(safeUrl);
+      setMessage("安全订阅链接已复制。");
+    } catch {
+      setMessage("当前浏览器不支持自动复制，请手动复制链接。");
+    }
+  }
+
   return (
     <>
       <InfoGrid
         items={[
-          ["自动刷新间隔", "5 分钟"],
-          ["目标订阅节点数", "20"],
-          ["最低保底节点数", "10"],
-          ["订阅有效期", "15 天"],
-          ["raw 订阅链接", "未生成"],
-          ["base64 订阅链接", "未生成"],
-          ["领取页链接", "未生成"],
-          ["Telegram Bot 只读接口", "未生成"],
-          ["二维码", "未生成"]
+          ["安全订阅链接", safeUrl],
+          ["当前订阅节点数", String(status?.nodeCount ?? 0)],
+          ["目标节点数", String(status?.targetNodeCount ?? 20)],
+          ["最低保底节点数", String(status?.minNodeCount ?? 10)],
+          ["最后生成时间", formatDate(status?.lastGeneratedAt || null)],
+          ["当前状态", status?.generated ? "已生成" : "未生成"],
+          ["风险提示", status?.warning || "暂无"]
         ]}
       />
       <div className="action-row">
-        <button onClick={notifyPlaceholder}>复制 raw 链接，占位按钮</button>
-        <button onClick={notifyPlaceholder}>复制 base64 链接，占位按钮</button>
-        <button onClick={notifyPlaceholder}>复制二维码，占位按钮</button>
-        <button onClick={notifyPlaceholder}>下载二维码，占位按钮</button>
-        <button onClick={notifyPlaceholder}>手动刷新订阅，占位按钮</button>
+        <button disabled={rebuilding} onClick={handleRebuildSubscription}>
+          {rebuilding ? "正在生成..." : "生成/刷新安全订阅"}
+        </button>
+        <button disabled={!status?.safeSubscriptionUrl} onClick={handleCopySafeLink}>
+          复制安全订阅链接
+        </button>
       </div>
-      <SectionNote>本软件只负责维护订阅，不负责外部分发。当前版本不生成订阅。</SectionNote>
+      {message ? <div className="inline-message">{message}</div> : null}
+      <InfoGrid
+        items={[
+          ["二维码", "后续版本支持"]
+        ]}
+      />
+      <SectionNote>当前版本只生成一个安全订阅链接，订阅内容由后台缓存输出。</SectionNote>
     </>
   );
 }

@@ -173,6 +173,34 @@ export async function listNodes(options: {
   };
 }
 
+export async function listSubscriptionCandidateNodes(limit: number): Promise<NodePoolItem[]> {
+  const file = await readNodePoolFile();
+  const max = Math.min(Math.max(limit, 1), 200);
+
+  return file.nodes
+    .filter((node) => {
+      if (node.manualOverride === true) {
+        return node.manualStatus === "available";
+      }
+      return node.status === "available";
+    })
+    .sort((left, right) => {
+      const manualScore = Number(right.manualOverride === true) - Number(left.manualOverride === true);
+      if (manualScore !== 0) {
+        return manualScore;
+      }
+
+      const leftMs = left.responseMs ?? Number.MAX_SAFE_INTEGER;
+      const rightMs = right.responseMs ?? Number.MAX_SAFE_INTEGER;
+      if (leftMs !== rightMs) {
+        return leftMs - rightMs;
+      }
+
+      return (right.lastTestedAt || right.lastSeenAt).localeCompare(left.lastTestedAt || left.lastSeenAt);
+    })
+    .slice(0, max);
+}
+
 export async function clearNodePool() {
   const updatedAt = new Date().toISOString();
   await writeNodePoolFile({
