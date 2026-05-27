@@ -2,12 +2,23 @@ import type { NodeDetectionDebug, NodeStatus } from "../nodePool/nodeTypes.js";
 
 export type DetectionStatus = NodeStatus;
 
+export type DetectionDebug = NodeDetectionDebug & {
+  hasServer?: boolean;
+  hasPort?: boolean;
+  hasId?: boolean;
+  hasPublicKey?: boolean;
+  hasServerName?: boolean;
+  hasFingerprint?: boolean;
+  hasShortId?: boolean;
+  spiderXValueType?: "/" | "empty" | "custom";
+};
+
 export type DetectionResult = {
   nodeId: string;
   status: DetectionStatus;
   responseMs: number | null;
   failureReason: string | null;
-  debug?: NodeDetectionDebug;
+  debug?: DetectionDebug;
 };
 
 export type DetectionHistoryItem = {

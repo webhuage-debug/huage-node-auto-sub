@@ -4,7 +4,7 @@
 
 ## 当前版本
 
-当前版本为 `v0.4.3`，已经完成项目骨架、GitHub 线索搜索、节点解析、本地 JSON 节点池基础、节点池清理，以及 Xray-core VLESS Reality 检测链路修复。
+当前版本为 `v0.4.4`，已经完成项目骨架、GitHub 线索搜索、节点解析、本地 JSON 节点池基础、节点池清理，以及 VLESS Reality 临时 Xray 配置细节修复。
 
 `v0.2.0` 在骨架基础上增加 GitHub 公开线索采集链路：
 
@@ -69,6 +69,16 @@
 
 当前版本仍不生成订阅。当前版本重点验证 Xray 检测准确性。
 
+`v0.4.4` 实现：
+
+- 对齐 VLESS Reality TCP `xtls-rprx-vision` 临时 Xray outbound 结构
+- Reality 缺失 `shortId` 时使用空字符串
+- Reality 缺失 `spiderX` 时默认使用 `/`
+- debug 摘要增加 hasPublicKey、hasServerName、hasShortId、spiderXValueType 等安全字段
+- bad record mac 类失败明确提示检查 publicKey、serverName、shortId、spiderX、flow
+
+当前版本仍不生成订阅。当前版本继续聚焦 Xray Reality 检测准确性。
+
 ## 本地开发命令
 
 ```bash
@@ -96,6 +106,7 @@ Docker Compose 预留给后续 VPS 部署使用，服务名、容器名和镜像
 - `v0.4.0`：Xray-core 可用性检测
 - `v0.4.2`：Xray 节点参数兼容增强
 - `v0.4.3`：VLESS Reality 检测链路修复
+- `v0.4.4`：VLESS Reality 临时 Xray 配置细节修复
 - `v0.5.0`：自动订阅刷新
 - `v0.6.0`：二维码和订阅有效期
 - `v0.7.0`：统计面板完善

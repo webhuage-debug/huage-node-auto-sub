@@ -40,6 +40,15 @@ v0.4.3 修复 VLESS Reality 检测链路：
 - 失败原因区分为 Xray 启动失败、SOCKS 请求失败、检测 URL 超时、TLS/Reality 握手失败、HTTP 状态异常。
 - debug 摘要只允许包含协议、传输、security、flow、代理类型、检测 URL 和检测核心，不包含 raw、uuid、password、publicKey、server 或完整配置。
 
+v0.4.4 继续对齐 VLESS Reality 临时 Xray 配置：
+
+- VLESS Reality TCP 不添加 `tlsSettings`、`wsSettings` 或 `grpcSettings`。
+- `shortId` 缺失时写入空字符串 `""`。
+- `spiderX` 缺失时写入 `/`，避免和常见客户端配置不一致。
+- URL 参数读取后会做安全 decode，fragment remark 不参与连接配置。
+- debug 摘要增加 `hasServer`、`hasPort`、`hasId`、`hasPublicKey`、`hasServerName`、`hasFingerprint`、`hasShortId`、`spiderXValueType`。
+- bad record mac 类错误提示检查 `publicKey`、`serverName`、`shortId`、`spiderX`、`flow` 是否和客户端一致。
+
 ## 后续待补充内容
 
 补充更完整的协议参数支持、检测失败分类、内核安装管理和检测队列优化。

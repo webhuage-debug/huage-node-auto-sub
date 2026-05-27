@@ -93,6 +93,16 @@ v0.4.3 验收项：
 - 前端检测管理页面显示安全 debug 摘要，不展示 raw 节点。
 - 不生成订阅，不新增菜单，不提交 `cores/` 和 `data/`。
 
+v0.4.4 验收项：
+
+- `/api/status` 返回 `version=v0.4.4`。
+- VLESS Reality TCP `xtls-rprx-vision` 节点不返回 `unsupported`。
+- Reality TCP 配置不生成 `tlsSettings`、`wsSettings`、`grpcSettings`。
+- `shortId` 缺失时使用 `""`。
+- `spiderX` 缺失时使用 `/`，debug 摘要能显示 `spiderXValueType=/`。
+- failureReason 对 bad record mac 明确提示检查 `publicKey/serverName/shortId/spiderX/flow`。
+- 不暴露 raw 节点，不提交 `cores/` 和 `data/`。
+
 ## 后续待补充内容
 
 补充 Docker 启动检查、接口测试、页面截图检查和真实业务版本验收项。

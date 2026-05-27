@@ -1,4 +1,5 @@
-import type { NodeDetectionDebug, NodePoolItem } from "../nodePool/nodeTypes.js";
+import type { NodePoolItem } from "../nodePool/nodeTypes.js";
+import type { DetectionDebug } from "./detectionTypes.js";
 
 type BuildResult =
   | { ok: true; outbound: Record<string, unknown> }
@@ -44,10 +45,18 @@ function firstParam(params: URLSearchParams, names: string[]): string {
   for (const name of names) {
     const value = params.get(name);
     if (value) {
-      return value;
+      return decodeParam(value);
     }
   }
   return "";
+}
+
+function decodeParam(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function booleanParam(value: string): boolean {
@@ -129,6 +138,16 @@ function getStreamSettings(params: URLSearchParams, options: { allowReality: boo
   }
 
   return { ok: true, outbound: streamSettings };
+}
+
+function getSpiderXValueType(value: string): DetectionDebug["spiderXValueType"] {
+  if (value === "/") {
+    return "/";
+  }
+  if (!value) {
+    return "empty";
+  }
+  return "custom";
 }
 
 function requireHostPort(url: URL): { host: string; port: number } | { reason: string } {
@@ -411,8 +430,8 @@ function buildVmess(raw: string): BuildResult {
   }
 }
 
-export function getNodeDetectionDebug(node: NodePoolItem, testUrl: string): NodeDetectionDebug {
-  const fallback: NodeDetectionDebug = {
+export function getNodeDetectionDebug(node: NodePoolItem, testUrl: string): DetectionDebug {
+  const fallback: DetectionDebug = {
     protocol: node.protocol,
     network: "unknown",
     security: "unknown",
@@ -428,11 +447,28 @@ export function getNodeDetectionDebug(node: NodePoolItem, testUrl: string): Node
       return fallback;
     }
 
+    const network = firstParam(url.searchParams, ["type", "network"]) || "tcp";
+    const security = firstParam(url.searchParams, ["security", "tls"]) || "none";
+    const flow = firstParam(url.searchParams, ["flow"]);
+    const publicKey = firstParam(url.searchParams, ["pbk", "publicKey"]);
+    const serverName = firstParam(url.searchParams, ["sni", "serverName"]);
+    const fingerprint = firstParam(url.searchParams, ["fp", "fingerprint"]) || (security === "reality" ? "chrome" : "");
+    const shortId = firstParam(url.searchParams, ["sid", "shortId"]);
+    const spiderX = firstParam(url.searchParams, ["spx", "spiderX"]) || (security === "reality" ? "/" : "");
+
     return {
       ...fallback,
-      network: firstParam(url.searchParams, ["type", "network"]) || "tcp",
-      security: firstParam(url.searchParams, ["security", "tls"]) || "none",
-      flow: firstParam(url.searchParams, ["flow"])
+      network,
+      security,
+      flow,
+      hasServer: Boolean(url.hostname),
+      hasPort: Boolean(parsePort(url.port)),
+      hasId: Boolean(url.username),
+      hasPublicKey: Boolean(publicKey),
+      hasServerName: Boolean(serverName),
+      hasFingerprint: Boolean(fingerprint),
+      hasShortId: Boolean(shortId),
+      spiderXValueType: getSpiderXValueType(spiderX)
     };
   }
 

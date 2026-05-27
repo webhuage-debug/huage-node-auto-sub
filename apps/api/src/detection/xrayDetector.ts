@@ -216,7 +216,8 @@ function normalizeFailureReason(error: unknown): string {
     lower.includes("ssl") ||
     lower.includes("handshake")
   ) {
-    return `Reality 握手失败，可能是配置映射或节点不可达：${message.replace(/^TLS\/Reality 握手失败：/, "")}`;
+    const detail = message.replace(/^TLS\/Reality 握手失败：/, "");
+    return `Reality 握手失败：请检查 publicKey、serverName、shortId、spiderX、flow 是否和客户端一致。原始错误：${detail}`;
   }
 
   if (message.includes("HTTP 状态异常")) {
@@ -254,6 +255,7 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
 
   let child: ChildProcessWithoutNullStreams | null = null;
   let configPath: string | null = null;
+  const xrayHints: string[] = [];
 
   try {
     configPath = await writeTempJsonFile("huage-xray-", config.outbound);
@@ -266,9 +268,14 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
       childStartError = error;
     });
     child.stdout.on("data", () => undefined);
-    child.stderr.on("data", () => undefined);
+    child.stderr.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      if (/reality|tls|handshake|bad record|decryption|ssl/i.test(text)) {
+        xrayHints.push(text.replace(/\s+/g, " ").slice(0, 240));
+      }
+    });
 
-    await delay(900);
+    await delay(1000);
     if (childStartError) {
       return {
         nodeId: node.id,
@@ -298,11 +305,12 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
       debug
     };
   } catch (error) {
+    const reason = normalizeFailureReason(error);
     return {
       nodeId: node.id,
       status: "unavailable",
       responseMs: null,
-      failureReason: normalizeFailureReason(error),
+      failureReason: xrayHints.length > 0 ? `${reason} Xray 提示：${xrayHints.join(" | ")}` : reason,
       debug
     };
   } finally {
