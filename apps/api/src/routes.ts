@@ -13,7 +13,8 @@ import {
   clearNodePoolHandler,
   importTextHandler,
   listNodesHandler,
-  parseLastGitHubResultsHandler
+  parseLastGitHubResultsHandler,
+  updateNodeManualStatusHandler
 } from "./nodePool/nodePoolService.js";
 import {
   getDetectionHistoryHandler,
@@ -128,6 +129,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/node-pool/status", async () => getNodePoolStatusHandler());
 
   app.get("/api/node-pool/nodes", async (request) => listNodesHandler(request));
+
+  app.post("/api/node-pool/nodes/:id/manual-status", async (request, reply) => updateNodeManualStatusHandler(request, reply));
 
   app.post("/api/node-pool/import-text", async (request, reply) => importTextHandler(request, reply));
 

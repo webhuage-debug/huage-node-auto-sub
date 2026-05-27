@@ -4,6 +4,8 @@ export type NodeSourceType = "github" | "manual";
 
 export type NodeStatus = "untested" | "testing" | "available" | "unavailable" | "unsupported" | "error";
 
+export type ManualNodeStatus = "available" | "unavailable";
+
 export type NodeDetectionDebug = {
   protocol: string;
   network: string;
@@ -35,6 +37,10 @@ export type NodePoolItem = {
   responseMs?: number | null;
   failureReason?: string | null;
   detectionDebug?: NodeDetectionDebug;
+  manualOverride?: boolean;
+  manualStatus?: ManualNodeStatus | null;
+  manualReason?: string | null;
+  manualUpdatedAt?: string | null;
   testCount?: number;
   successCount?: number;
   failCount?: number;

@@ -103,6 +103,17 @@ v0.4.4 验收项：
 - failureReason 对 bad record mac 明确提示检查 `publicKey/serverName/shortId/spiderX/flow`。
 - 不暴露 raw 节点，不提交 `cores/` 和 `data/`。
 
+v0.4.5 验收项：
+
+- `/api/status` 返回 `version=v0.4.5`。
+- `POST /api/node-pool/nodes/:id/manual-status` 可以标记可用、不可用和恢复待检测。
+- 手动标记可用后节点写入 `manualOverride=true`、`manualStatus=available`、`manualReason`、`manualUpdatedAt`。
+- 手动标记不可用后节点写入 `manualOverride=true`、`manualStatus=unavailable`。
+- 恢复待检测后节点写入 `status=untested`，并清空人工校正字段。
+- `/api/node-pool/status` 返回 `manualAvailable`、`manualUnavailable`、`autoAvailable`、`autoUnavailable`。
+- 前端节点列表提供手动操作按钮，且不展示 raw 节点。
+- 不生成订阅，不新增菜单，不提交 `cores/` 和 `data/`。
+
 ## 后续待补充内容
 
 补充 Docker 启动检查、接口测试、页面截图检查和真实业务版本验收项。

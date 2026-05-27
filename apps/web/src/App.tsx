@@ -56,6 +56,10 @@ type NodePoolStatus = {
   unavailable: number;
   unsupported: number;
   error: number;
+  manualAvailable: number;
+  manualUnavailable: number;
+  autoAvailable: number;
+  autoUnavailable: number;
   protocolStats: Record<string, number>;
   sourceStats: Record<string, number>;
   regionStats: Record<string, number>;
@@ -80,6 +84,10 @@ type NodePoolItem = {
   detectionCore?: string | null;
   responseMs?: number | null;
   failureReason?: string | null;
+  manualOverride?: boolean;
+  manualStatus?: "available" | "unavailable" | null;
+  manualReason?: string | null;
+  manualUpdatedAt?: string | null;
   detectionDebug?: {
     protocol: string;
     network: string;
@@ -149,7 +157,7 @@ type DetectionHistoryResponse = {
   items: DetectionHistoryItem[];
 };
 
-const appVersion = "v0.4.3";
+const appVersion = "v0.4.5";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -202,6 +210,13 @@ function formatStats(stats: Record<string, number> | undefined) {
     .join("，");
 }
 
+function formatManualStatus(node: NodePoolItem) {
+  if (!node.manualOverride) {
+    return "否";
+  }
+  return node.manualStatus === "available" ? "手动可用" : "手动不可用";
+}
+
 function InfoGrid({ items }: { items: Array<[string, string]> }) {
   return (
     <div className="info-grid">
@@ -219,7 +234,15 @@ function SectionNote({ children }: { children: string }) {
   return <div className="section-note">{children}</div>;
 }
 
-function NodeListTable({ nodes }: { nodes: NodePoolItem[] }) {
+function NodeListTable({
+  nodes,
+  onManualStatus,
+  manualActionNodeId
+}: {
+  nodes: NodePoolItem[];
+  onManualStatus?: (node: NodePoolItem, status: "available" | "unavailable" | "untested") => void | Promise<void>;
+  manualActionNodeId?: string | null;
+}) {
   return (
     <div className="table-panel">
       <table>
@@ -230,17 +253,20 @@ function NodeListTable({ nodes }: { nodes: NodePoolItem[] }) {
             <th>来源</th>
             <th>仓库</th>
             <th>状态</th>
+            <th>是否手动确认</th>
+            <th>手动原因</th>
             <th>响应</th>
             <th>失败原因</th>
             <th>检测摘要</th>
             <th>首次发现时间</th>
             <th>最近检测时间</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
           {nodes.length === 0 ? (
             <tr>
-              <td colSpan={10}>暂无节点池数据</td>
+              <td colSpan={13}>暂无节点池数据</td>
             </tr>
           ) : (
             nodes.map((node) => (
@@ -250,6 +276,8 @@ function NodeListTable({ nodes }: { nodes: NodePoolItem[] }) {
                 <td>{node.sourceType}</td>
                 <td>{node.sourceRepository || "-"}</td>
                 <td>{node.status}</td>
+                <td>{formatManualStatus(node)}</td>
+                <td className="wrap-cell">{node.manualReason || "-"}</td>
                 <td>{node.responseMs ? `${node.responseMs} ms` : "-"}</td>
                 <td className="wrap-cell">{formatFailureReason(node.failureReason)}</td>
                 <td className="wrap-cell">
@@ -259,6 +287,23 @@ function NodeListTable({ nodes }: { nodes: NodePoolItem[] }) {
                 </td>
                 <td>{formatDate(node.firstSeenAt)}</td>
                 <td>{formatDate(node.lastTestedAt || null)}</td>
+                <td>
+                  {onManualStatus ? (
+                    <div className="node-actions">
+                      <button disabled={manualActionNodeId === node.id} onClick={() => { void onManualStatus(node, "available"); }}>
+                        标记可用
+                      </button>
+                      <button disabled={manualActionNodeId === node.id} onClick={() => { void onManualStatus(node, "unavailable"); }}>
+                        标记不可用
+                      </button>
+                      <button disabled={manualActionNodeId === node.id} onClick={() => { void onManualStatus(node, "untested"); }}>
+                        恢复待检测
+                      </button>
+                    </div>
+                  ) : (
+                    "-"
+                  )}
+                </td>
               </tr>
             ))
           )}
@@ -294,6 +339,27 @@ async function clearNodePool(): Promise<{ ok: boolean; cleared: boolean; total: 
   }
 
   return response.json();
+}
+
+async function updateManualNodeStatus(
+  nodeId: string,
+  status: "available" | "unavailable" | "untested",
+  reason = ""
+): Promise<{ ok: boolean; node: NodePoolItem }> {
+  const response = await fetch(`/api/node-pool/nodes/${encodeURIComponent(nodeId)}/manual-status`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ status, reason })
+  });
+  const payload = await response.json();
+
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.message || payload.error || "手动状态更新失败");
+  }
+
+  return payload;
 }
 
 async function fetchXrayStatus(): Promise<XrayDetectionStatus> {
@@ -801,6 +867,7 @@ function StatsPage() {
   const [nodes, setNodes] = useState<NodePoolItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [manualActionNodeId, setManualActionNodeId] = useState<string | null>(null);
 
   const loadStatsData = useCallback(async () => {
     await Promise.all([fetchNodePoolStatus(), fetchNodeList()])
@@ -836,6 +903,33 @@ function StatsPage() {
     }
   }
 
+  async function handleManualStatus(node: NodePoolItem, nextStatus: "available" | "unavailable" | "untested") {
+    const actionText = nextStatus === "available" ? "标记为可用" : nextStatus === "unavailable" ? "标记为不可用" : "恢复为待检测";
+    const confirmed = window.confirm(`确认要将该节点${actionText}吗？`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    const reason =
+      nextStatus === "untested"
+        ? ""
+        : window.prompt("请输入手动校正原因，可留空。", nextStatus === "available" ? "客户端实测可用" : "手动确认不可用") || "";
+
+    setManualActionNodeId(node.id);
+    setMessage(null);
+
+    try {
+      await updateManualNodeStatus(node.id, nextStatus, reason);
+      await loadStatsData();
+      setMessage(`节点已${actionText}。`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "手动状态更新失败");
+    } finally {
+      setManualActionNodeId(null);
+    }
+  }
+
   return (
     <>
       <div className="section-heading-row">
@@ -851,6 +945,10 @@ function StatsPage() {
           ["检测中节点数", String(status?.testing ?? 0)],
           ["可用节点数", String(status?.available ?? 0)],
           ["不可用节点数", String(status?.unavailable ?? 0)],
+          ["自动检测可用", String(status?.autoAvailable ?? 0)],
+          ["自动检测不可用", String(status?.autoUnavailable ?? 0)],
+          ["手动确认可用", String(status?.manualAvailable ?? 0)],
+          ["手动确认不可用", String(status?.manualUnavailable ?? 0)],
           ["暂不支持节点数", String(status?.unsupported ?? 0)],
           ["错误节点数", String(status?.error ?? 0)],
           ["按协议统计", formatStats(status?.protocolStats)],
@@ -862,8 +960,8 @@ function StatsPage() {
       {message ? <div className="inline-message">{message}</div> : null}
 
       <h3 className="subheading">最近节点列表</h3>
-      <NodeListTable nodes={nodes} />
-      <SectionNote>统计数据来自本地 JSON 节点池，页面只展示脱敏节点，不展示 raw 节点。</SectionNote>
+      <NodeListTable nodes={nodes} onManualStatus={handleManualStatus} manualActionNodeId={manualActionNodeId} />
+      <SectionNote>自动检测可能误判，手动确认可用的节点后续也可进入订阅池。统计数据来自本地 JSON 节点池，页面只展示脱敏节点，不展示 raw 节点。</SectionNote>
     </>
   );
 }

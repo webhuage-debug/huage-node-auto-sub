@@ -352,6 +352,19 @@ a:hover {
   overflow-wrap: anywhere;
 }
 
+.node-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 260px;
+}
+
+.node-actions button {
+  min-height: 32px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
 .compact-cell,
 .time-cell,
 .link-cell {

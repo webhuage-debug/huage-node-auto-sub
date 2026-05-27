@@ -2,12 +2,21 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { getLastCollectorResults } from "../collector/githubCollector.js";
 import { readLimitedGitHubContents } from "./githubContentResolver.js";
 import { createNodeFromRaw, emptyProtocolStats, parseNodeRawsFromText } from "./nodeParser.js";
-import { clearNodePool, getNodePoolStatus, listNodes, upsertNodes } from "./nodeStore.js";
+import { clearNodePool, getNodePoolStatus, listNodes, updateNodeManualStatus, upsertNodes } from "./nodeStore.js";
 import type { ImportSummary, NodePoolItem, NodeProtocol, NodeSource } from "./nodeTypes.js";
 
 type ImportTextBody = {
   text?: string;
   sourceName?: string;
+};
+
+type ManualStatusParams = {
+  id?: string;
+};
+
+type ManualStatusBody = {
+  status?: string;
+  reason?: string;
 };
 
 type ParseHistoryItem = {
@@ -72,6 +81,42 @@ export async function listNodesHandler(request: FastifyRequest) {
     protocol: query.protocol || "",
     sourceType: query.sourceType || ""
   });
+}
+
+export async function updateNodeManualStatusHandler(request: FastifyRequest, reply: FastifyReply) {
+  const params = request.params as ManualStatusParams;
+  const body = request.body as ManualStatusBody;
+  const nodeId = params.id || "";
+  const status = body?.status || "";
+
+  if (!["available", "unavailable", "untested"].includes(status)) {
+    reply.code(400);
+    return {
+      ok: false,
+      error: "INVALID_MANUAL_STATUS",
+      message: "status 只允许 available、unavailable 或 untested。"
+    };
+  }
+
+  const node = await updateNodeManualStatus(
+    nodeId,
+    status as "available" | "unavailable" | "untested",
+    typeof body?.reason === "string" ? body.reason.slice(0, 200) : ""
+  );
+
+  if (!node) {
+    reply.code(404);
+    return {
+      ok: false,
+      error: "NODE_NOT_FOUND",
+      message: "未找到指定节点。"
+    };
+  }
+
+  return {
+    ok: true,
+    node
+  };
 }
 
 export async function importTextHandler(request: FastifyRequest, reply: FastifyReply) {

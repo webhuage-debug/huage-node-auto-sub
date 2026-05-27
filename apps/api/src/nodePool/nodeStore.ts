@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { resolveProjectPath } from "../config.js";
-import type { ImportSummary, NodeDetectionDebug, NodePoolFile, NodePoolItem, NodeProtocol, NodeSourceType, NodeStatus, PublicNodePoolItem } from "./nodeTypes.js";
+import type { ImportSummary, ManualNodeStatus, NodeDetectionDebug, NodePoolFile, NodePoolItem, NodeProtocol, NodeSourceType, NodeStatus, PublicNodePoolItem } from "./nodeTypes.js";
 import { emptyProtocolStats } from "./nodeParser.js";
 
 const defaultFile: NodePoolFile = {
@@ -104,12 +104,28 @@ export async function getNodePoolStatus() {
     unsupported: 0,
     error: 0
   };
+  const manualStats = {
+    manualAvailable: 0,
+    manualUnavailable: 0,
+    autoAvailable: 0,
+    autoUnavailable: 0
+  };
 
   for (const node of file.nodes) {
     protocolStats[node.protocol] += 1;
     sourceStats[node.sourceType] += 1;
     regionStats[node.region] = (regionStats[node.region] || 0) + 1;
     statusStats[node.status] = (statusStats[node.status] || 0) + 1;
+
+    if (node.manualOverride === true && node.manualStatus === "available") {
+      manualStats.manualAvailable += 1;
+    } else if (node.manualOverride === true && node.manualStatus === "unavailable") {
+      manualStats.manualUnavailable += 1;
+    } else if (node.status === "available") {
+      manualStats.autoAvailable += 1;
+    } else if (node.status === "unavailable") {
+      manualStats.autoUnavailable += 1;
+    }
   }
 
   return {
@@ -121,6 +137,7 @@ export async function getNodePoolStatus() {
     unavailable: statusStats.unavailable,
     unsupported: statusStats.unsupported,
     error: statusStats.error,
+    ...manualStats,
     protocolStats,
     sourceStats,
     regionStats,
@@ -236,4 +253,40 @@ export async function updateNodeStatus(id: string, status: NodeStatus): Promise<
   file.updatedAt = new Date().toISOString();
   await writeNodePoolFile(file);
   return node;
+}
+
+export async function updateNodeManualStatus(
+  id: string,
+  nextStatus: ManualNodeStatus | "untested",
+  reason = ""
+): Promise<PublicNodePoolItem | null> {
+  const file = await readNodePoolFile();
+  const node = file.nodes.find((item) => item.id === id);
+
+  if (!node) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+
+  if (nextStatus === "untested") {
+    node.status = "untested";
+    node.manualOverride = false;
+    node.manualStatus = null;
+    node.manualReason = null;
+    node.manualUpdatedAt = null;
+    node.responseMs = null;
+    node.failureReason = null;
+  } else {
+    node.status = nextStatus;
+    node.manualOverride = true;
+    node.manualStatus = nextStatus;
+    node.manualReason = reason;
+    node.manualUpdatedAt = now;
+    node.failureReason = null;
+  }
+
+  file.updatedAt = now;
+  await writeNodePoolFile(file);
+  return toPublicNode(node);
 }
