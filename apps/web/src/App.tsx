@@ -176,7 +176,7 @@ type SubscriptionStatus = {
   lastAutoRefreshError: string | null;
 };
 
-const appVersion = "v0.6.1";
+const appVersion = "v0.6.2";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -234,6 +234,35 @@ function formatManualStatus(node: NodePoolItem) {
     return "否";
   }
   return node.manualStatus === "available" ? "手动可用" : "手动不可用";
+}
+
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through to the textarea fallback for HTTP or restricted browser contexts.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
 }
 
 function InfoGrid({ items }: { items: Array<[string, string]> }) {
@@ -882,12 +911,13 @@ function SubscriptionPage() {
       return;
     }
 
-    try {
-      await navigator.clipboard.writeText(safeUrl);
+    const copied = await copyTextToClipboard(safeUrl);
+    if (copied) {
       setMessage("已复制安全订阅链接。");
-    } catch {
-      setMessage("当前浏览器不支持自动复制，请手动在接口中查看。");
+      return;
     }
+
+    setMessage("自动复制失败，请检查浏览器权限或使用 HTTPS 后重试。");
   }
 
   return (
