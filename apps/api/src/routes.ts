@@ -92,6 +92,7 @@ function summarizeConfig(fileName: string, content: JsonRecord): JsonRecord {
     minimumNodeCount: subscription?.minimum_node_count,
     subscriptionAutoRefreshEnabled: subscription?.subscriptionAutoRefreshEnabled,
     subscriptionAutoRefreshIntervalMinutes: subscription?.subscriptionRefreshIntervalMinutes,
+    subscriptionPublicBaseUrlConfigured: Boolean(subscription?.subscriptionPublicBaseUrl),
     validDays: subscription?.valid_days,
     preferredCore: detection?.preferred_core,
     detectionTimeoutSeconds: detection?.timeout_seconds,

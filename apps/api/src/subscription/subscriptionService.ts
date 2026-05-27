@@ -2,7 +2,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { listSubscriptionCandidateNodes } from "../nodePool/nodeStore.js";
 import { getSubscriptionAutoRefreshRuntime } from "./subscriptionAutoRefresh.js";
 import { createSubscriptionToken, readSubscriptionFile, toSubscriptionStatus, writeSubscriptionFile } from "./subscriptionStore.js";
-import type { SubscriptionFile } from "./subscriptionTypes.js";
+import type { SubscriptionFile, SubscriptionStatus } from "./subscriptionTypes.js";
 
 type SubscriptionTokenParams = {
   token?: string;
@@ -19,6 +19,24 @@ function getSubscriptionSettings() {
   return {
     targetNodeCount: numberEnv("SUBSCRIPTION_TARGET_NODE_COUNT", 20),
     minNodeCount: numberEnv("SUBSCRIPTION_MIN_NODE_COUNT", 10)
+  };
+}
+
+function getPublicSubscriptionBaseUrl(): string | null {
+  const value = process.env.SUBSCRIPTION_PUBLIC_BASE_URL?.trim();
+  if (!value) {
+    return null;
+  }
+  return value.replace(/\/+$/g, "");
+}
+
+function withPublicSubscriptionConfig(status: SubscriptionStatus): SubscriptionStatus {
+  const publicSubscriptionBaseUrl = getPublicSubscriptionBaseUrl();
+  return {
+    ...status,
+    publicBaseUrlConfigured: Boolean(publicSubscriptionBaseUrl),
+    publicSubscriptionBaseUrl,
+    copyableSubscriptionUrlReady: Boolean(publicSubscriptionBaseUrl && status.safeSubscriptionUrl)
   };
 }
 
@@ -64,7 +82,7 @@ function withAutoRefreshResult(
 
 export async function getSubscriptionStatusHandler() {
   const file = await readSubscriptionFile();
-  return toSubscriptionStatus(file, false, getSubscriptionAutoRefreshRuntime());
+  return withPublicSubscriptionConfig(toSubscriptionStatus(file, false, getSubscriptionAutoRefreshRuntime()));
 }
 
 export async function rebuildSubscriptionCache(
@@ -148,7 +166,7 @@ export async function rebuildSubscriptionForAutoRefresh(nextAutoRefreshAt: strin
 
 export async function rebuildSubscriptionHandler() {
   const { file, tokenCreated } = await rebuildSubscriptionCache("manual");
-  return toSubscriptionStatus(file, tokenCreated, getSubscriptionAutoRefreshRuntime());
+  return withPublicSubscriptionConfig(toSubscriptionStatus(file, tokenCreated, getSubscriptionAutoRefreshRuntime()));
 }
 
 export async function publicSubscriptionHandler(request: FastifyRequest, reply: FastifyReply) {

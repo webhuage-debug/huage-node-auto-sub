@@ -174,9 +174,12 @@ type SubscriptionStatus = {
   lastAutoRefreshOk: boolean | null;
   lastAutoRefreshWarning: string | null;
   lastAutoRefreshError: string | null;
+  publicBaseUrlConfigured: boolean;
+  publicSubscriptionBaseUrl: string | null;
+  copyableSubscriptionUrlReady: boolean;
 };
 
-const appVersion = "v0.6.2";
+const appVersion = "v0.6.3";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -263,6 +266,12 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
   } finally {
     document.body.removeChild(textarea);
   }
+}
+
+function joinPublicSubscriptionUrl(baseUrl: string, subscriptionPath: string): string {
+  const base = baseUrl.replace(/\/+$/g, "");
+  const path = subscriptionPath.startsWith("/") ? subscriptionPath : `/${subscriptionPath}`;
+  return `${base}${path}`;
 }
 
 function InfoGrid({ items }: { items: Array<[string, string]> }) {
@@ -870,7 +879,6 @@ function SubscriptionPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
 
-  const safeUrl = status?.safeSubscriptionUrl ? `${window.location.origin}${status.safeSubscriptionUrl}` : "未生成";
   const autoRefreshResult =
     status?.lastAutoRefreshOk === null || status?.lastAutoRefreshOk === undefined
       ? "暂无"
@@ -907,17 +915,22 @@ function SubscriptionPage() {
 
   async function handleCopySafeLink() {
     if (!status?.safeSubscriptionUrl) {
-      setMessage("请先生成安全订阅链接。");
+      setMessage("请先生成安全订阅链接");
       return;
     }
 
-    const copied = await copyTextToClipboard(safeUrl);
+    if (!status.publicSubscriptionBaseUrl) {
+      setMessage("请先配置公开订阅域名 SUBSCRIPTION_PUBLIC_BASE_URL");
+      return;
+    }
+
+    const copied = await copyTextToClipboard(joinPublicSubscriptionUrl(status.publicSubscriptionBaseUrl, status.safeSubscriptionUrl));
     if (copied) {
-      setMessage("已复制安全订阅链接。");
+      setMessage("已复制公开安全订阅链接");
       return;
     }
 
-    setMessage("自动复制失败，请检查浏览器权限或使用 HTTPS 后重试。");
+    setMessage("自动复制失败，请检查浏览器权限或使用 HTTPS 后重试");
   }
 
   return (
@@ -925,6 +938,7 @@ function SubscriptionPage() {
       <InfoGrid
         items={[
           ["安全订阅", status?.generated ? "已生成" : "未生成"],
+          ["公开订阅域名", formatBool(Boolean(status?.publicBaseUrlConfigured), "已配置", "未配置")],
           ["当前订阅节点数", String(status?.nodeCount ?? 0)],
           ["目标节点数", String(status?.targetNodeCount ?? 20)],
           ["最低保底节点数", String(status?.minNodeCount ?? 10)],
@@ -944,7 +958,7 @@ function SubscriptionPage() {
         <button disabled={rebuilding} onClick={handleRebuildSubscription}>
           {rebuilding ? "正在生成..." : "生成/刷新安全订阅"}
         </button>
-        <button disabled={!status?.safeSubscriptionUrl} onClick={handleCopySafeLink}>
+        <button onClick={handleCopySafeLink}>
           复制安全订阅链接
         </button>
       </div>

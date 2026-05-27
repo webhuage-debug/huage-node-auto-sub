@@ -164,3 +164,14 @@ v0.5.0 验收项：
 - 页面不显示完整订阅链接、`/sub/{token}` 或 token。
 - 页面不显示 raw/base64 两个链接。
 - 不修改后端订阅生成逻辑、自动刷新逻辑，不提交 `data/` 或 `cores/`。
+
+## v0.6.3 验收项
+
+- `/api/status` 返回 `version=v0.6.3`。
+- `/api/subscription/status` 返回 `publicBaseUrlConfigured`、`publicSubscriptionBaseUrl`、`copyableSubscriptionUrlReady`。
+- 未配置 `SUBSCRIPTION_PUBLIC_BASE_URL` 时，复制按钮不复制后台访问地址或 3000 端口地址。
+- 未配置时提示“请先配置公开订阅域名 SUBSCRIPTION_PUBLIC_BASE_URL”。
+- 配置 `SUBSCRIPTION_PUBLIC_BASE_URL=https://get.huage.us` 后，复制结果为 `https://get.huage.us/sub/xxxx`。
+- 页面不显示完整订阅链接、`/sub/xxxx` 或 token。
+- 页面不显示 raw/base64 两个链接。
+- 不修改订阅 token 生成规则，不修改自动刷新逻辑，不提交 `data/` 或 `cores/`。

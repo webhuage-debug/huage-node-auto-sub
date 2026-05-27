@@ -31,6 +31,9 @@ export type SubscriptionStatus = {
   lastAutoRefreshOk: boolean | null;
   lastAutoRefreshWarning: string | null;
   lastAutoRefreshError: string | null;
+  publicBaseUrlConfigured?: boolean;
+  publicSubscriptionBaseUrl?: string | null;
+  copyableSubscriptionUrlReady?: boolean;
 };
 
 export type SubscriptionAutoRefreshRuntime = {
