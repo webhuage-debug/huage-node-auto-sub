@@ -1,4 +1,4 @@
-import type { NodeStatus } from "../nodePool/nodeTypes.js";
+import type { NodeDetectionDebug, NodeStatus } from "../nodePool/nodeTypes.js";
 
 export type DetectionStatus = NodeStatus;
 
@@ -7,6 +7,7 @@ export type DetectionResult = {
   status: DetectionStatus;
   responseMs: number | null;
   failureReason: string | null;
+  debug?: NodeDetectionDebug;
 };
 
 export type DetectionHistoryItem = {

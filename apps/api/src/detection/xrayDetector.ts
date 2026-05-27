@@ -5,10 +5,12 @@ import tls from "node:tls";
 import { getFreeLocalPort } from "../utils/port.js";
 import { removeTempFile, writeTempJsonFile } from "../utils/tempFile.js";
 import type { NodePoolItem } from "../nodePool/nodeTypes.js";
-import { buildXrayConfig } from "./xrayConfigBuilder.js";
+import { buildXrayConfig, getNodeDetectionDebug } from "./xrayConfigBuilder.js";
 import type { DetectionResult, DetectionSettings } from "./detectionTypes.js";
 
 const xrayMissingMessage = "未检测到 Xray-core，请先安装或放置 Xray-core 到指定目录";
+
+type SocksStage = "SOCKS_GREETING" | "SOCKS_CONNECT" | "TLS_REQUEST";
 
 export async function isXrayInstalled(binaryPath: string): Promise<boolean> {
   try {
@@ -29,94 +31,201 @@ function safeKill(child: ChildProcessWithoutNullStreams | null): void {
   }
 }
 
-function requestThroughSocksProxy(proxyPort: number, targetUrl: string, timeoutMs: number): Promise<number> {
-  const startedAt = Date.now();
-  const url = new URL(targetUrl);
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, onTimeout: () => void, message: string): Promise<T> {
+  let timeout: NodeJS.Timeout | null = null;
 
-  return new Promise((resolve, reject) => {
-    const socket = net.connect(proxyPort, "127.0.0.1");
+  const timeoutPromise = new Promise<T>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      onTimeout();
+      reject(new Error(message));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  });
+}
+
+function waitForSocketData(socket: net.Socket, timeoutMs: number, stage: SocksStage): Promise<Buffer> {
+  return withTimeout(
+    new Promise<Buffer>((resolve, reject) => {
+      const cleanup = () => {
+        socket.off("data", onData);
+        socket.off("error", onError);
+      };
+      const onData = (chunk: Buffer) => {
+        cleanup();
+        resolve(chunk);
+      };
+      const onError = (error: Error) => {
+        cleanup();
+        reject(new Error(`${stage} 失败：${error.message}`));
+      };
+
+      socket.once("data", onData);
+      socket.once("error", onError);
+    }),
+    timeoutMs,
+    () => socket.destroy(),
+    `${stage} 超时`
+  );
+}
+
+function connectTcp(host: string, port: number, timeoutMs: number): Promise<net.Socket> {
+  return new Promise<net.Socket>((resolve, reject) => {
+    const socket = net.connect(port, host);
     const timeout = setTimeout(() => {
       socket.destroy();
-      reject(new Error("检测超时"));
+      reject(new Error("SOCKS 连接超时"));
     }, timeoutMs);
-
-    socket.once("error", (error) => {
+    const cleanup = () => {
       clearTimeout(timeout);
-      reject(error);
-    });
+      socket.off("connect", onConnect);
+      socket.off("error", onError);
+    };
+    const onConnect = () => {
+      cleanup();
+      resolve(socket);
+    };
+    const onError = (error: Error) => {
+      cleanup();
+      reject(new Error(`SOCKS 连接失败：${error.message}`));
+    };
 
-    socket.once("connect", () => {
-      socket.write(Buffer.from([0x05, 0x01, 0x00]));
-    });
+    socket.once("connect", onConnect);
+    socket.once("error", onError);
+  });
+}
 
-    let stage: "greeting" | "connect" | "tls" = "greeting";
+async function connectSocks5(proxyPort: number, targetHost: string, targetPort: number, timeoutMs: number): Promise<net.Socket> {
+  const socket = await connectTcp("127.0.0.1", proxyPort, timeoutMs);
 
-    socket.on("data", (chunk) => {
-      if (stage === "tls") {
-        return;
-      }
+  try {
+    socket.write(Buffer.from([0x05, 0x01, 0x00]));
+    const greeting = await waitForSocketData(socket, timeoutMs, "SOCKS_GREETING");
+    if (greeting.length < 2 || greeting[0] !== 0x05 || greeting[1] !== 0x00) {
+      throw new Error("SOCKS 握手失败：代理未接受 noauth");
+    }
 
-      if (stage === "greeting") {
-        if (chunk.length < 2 || chunk[0] !== 0x05 || chunk[1] !== 0x00) {
-          clearTimeout(timeout);
-          socket.destroy();
-          reject(new Error("SOCKS 握手失败"));
-          return;
-        }
+    const host = Buffer.from(targetHost);
+    if (host.length > 255) {
+      throw new Error("SOCKS 请求失败：目标域名过长");
+    }
 
-        const host = Buffer.from(url.hostname);
-        const port = Buffer.alloc(2);
-        port.writeUInt16BE(443, 0);
-        socket.write(Buffer.concat([Buffer.from([0x05, 0x01, 0x00, 0x03, host.length]), host, port]));
-        stage = "connect";
-        return;
-      }
+    const port = Buffer.alloc(2);
+    port.writeUInt16BE(targetPort, 0);
+    socket.write(Buffer.concat([Buffer.from([0x05, 0x01, 0x00, 0x03, host.length]), host, port]));
 
-      if (stage === "connect" && (chunk.length < 2 || chunk[1] !== 0x00)) {
-        clearTimeout(timeout);
-        socket.destroy();
-        reject(new Error("SOCKS 连接目标失败"));
-        return;
-      }
+    const connected = await waitForSocketData(socket, timeoutMs, "SOCKS_CONNECT");
+    if (connected.length < 2 || connected[0] !== 0x05 || connected[1] !== 0x00) {
+      throw new Error(`SOCKS 请求失败：代理连接目标失败，状态码 ${connected[1] ?? "unknown"}`);
+    }
 
-      stage = "tls";
+    socket.removeAllListeners("data");
+    socket.removeAllListeners("error");
+    return socket;
+  } catch (error) {
+    socket.destroy();
+    throw error;
+  }
+}
+
+function requestHttpsOverSocket(socket: net.Socket, targetUrl: URL, timeoutMs: number): Promise<number> {
+  const startedAt = Date.now();
+
+  return withTimeout(
+    new Promise<number>((resolve, reject) => {
       const secureSocket = tls.connect({
         socket,
-        servername: url.hostname
+        servername: targetUrl.hostname
       });
 
-      secureSocket.once("secureConnect", () => {
-        secureSocket.write(`GET ${url.pathname}${url.search} HTTP/1.1\r\nHost: ${url.hostname}\r\nConnection: close\r\n\r\n`);
-      });
-
-      let httpsResponse = "";
-      secureSocket.on("data", (secureChunk) => {
-        httpsResponse += secureChunk.toString("utf8");
-      });
-      secureSocket.once("error", (error) => {
-        clearTimeout(timeout);
-        reject(error);
-      });
-      secureSocket.once("end", () => {
-        clearTimeout(timeout);
-        const firstLine = httpsResponse.split("\r\n")[0] || "";
+      const cleanup = () => {
+        secureSocket.off("secureConnect", onSecureConnect);
+        secureSocket.off("data", onData);
+        secureSocket.off("error", onError);
+        secureSocket.off("end", onEnd);
+      };
+      const onSecureConnect = () => {
+        secureSocket.write(`GET ${targetUrl.pathname}${targetUrl.search} HTTP/1.1\r\nHost: ${targetUrl.hostname}\r\nConnection: close\r\n\r\n`);
+      };
+      let response = "";
+      const onData = (chunk: Buffer) => {
+        response += chunk.toString("utf8");
+      };
+      const onError = (error: Error) => {
+        cleanup();
+        reject(new Error(`TLS/Reality 握手失败：${error.message}`));
+      };
+      const onEnd = () => {
+        cleanup();
+        const firstLine = response.split("\r\n")[0] || "";
         if (/^HTTP\/\d\.\d 2\d\d/.test(firstLine) || firstLine.includes("204")) {
           resolve(Date.now() - startedAt);
           return;
         }
-        reject(new Error(`检测目标返回异常：${firstLine || "无响应"}`));
-      });
-    });
-  });
+        reject(new Error(`HTTP 状态异常：${firstLine || "无响应"}`));
+      };
+
+      secureSocket.once("secureConnect", onSecureConnect);
+      secureSocket.on("data", onData);
+      secureSocket.once("error", onError);
+      secureSocket.once("end", onEnd);
+    }),
+    timeoutMs,
+    () => socket.destroy(),
+    "检测 URL 超时"
+  );
+}
+
+async function requestThroughSocksProxy(proxyPort: number, targetUrl: string, timeoutMs: number): Promise<number> {
+  const url = new URL(targetUrl);
+  const targetPort = url.port ? Number(url.port) : 443;
+  const socket = await connectSocks5(proxyPort, url.hostname, targetPort, timeoutMs);
+  return requestHttpsOverSocket(socket, url, timeoutMs);
+}
+
+function normalizeFailureReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : "检测失败";
+  const lower = message.toLowerCase();
+
+  if (message.includes("检测 URL 超时") || lower.includes("timeout") || lower.includes("timed out")) {
+    return "检测 URL 超时";
+  }
+
+  if (message.includes("SOCKS")) {
+    return message;
+  }
+
+  if (
+    message.includes("TLS/Reality") ||
+    lower.includes("bad record mac") ||
+    lower.includes("decryption failed") ||
+    lower.includes("ssl") ||
+    lower.includes("handshake")
+  ) {
+    return `Reality 握手失败，可能是配置映射或节点不可达：${message.replace(/^TLS\/Reality 握手失败：/, "")}`;
+  }
+
+  if (message.includes("HTTP 状态异常")) {
+    return message;
+  }
+
+  return `检测请求失败：${message}`;
 }
 
 export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSettings): Promise<DetectionResult> {
+  const debug = getNodeDetectionDebug(node, settings.testUrl);
+
   if (!(await isXrayInstalled(settings.xrayBinaryPath))) {
     return {
       nodeId: node.id,
       status: "error",
       responseMs: null,
-      failureReason: xrayMissingMessage
+      failureReason: xrayMissingMessage,
+      debug
     };
   }
 
@@ -128,7 +237,8 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
       nodeId: node.id,
       status: "unsupported",
       responseMs: null,
-      failureReason: config.reason
+      failureReason: config.reason,
+      debug
     };
   }
 
@@ -140,6 +250,7 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
     child = spawn(settings.xrayBinaryPath, ["run", "-config", configPath], {
       stdio: "pipe"
     });
+
     let childStartError: Error | null = null;
     child.once("error", (error) => {
       childStartError = error;
@@ -147,13 +258,14 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
     child.stdout.on("data", () => undefined);
     child.stderr.on("data", () => undefined);
 
-    await delay(700);
+    await delay(900);
     if (childStartError) {
       return {
         nodeId: node.id,
         status: "error",
         responseMs: null,
-        failureReason: "Xray 子进程启动失败"
+        failureReason: `Xray 启动失败：${childStartError.message}`,
+        debug
       };
     }
     if (child.exitCode !== null) {
@@ -161,7 +273,8 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
         nodeId: node.id,
         status: "error",
         responseMs: null,
-        failureReason: "Xray 子进程提前退出"
+        failureReason: `Xray 配置错误或启动失败：子进程提前退出，exitCode=${child.exitCode}`,
+        debug
       };
     }
 
@@ -171,16 +284,16 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
       nodeId: node.id,
       status: "available",
       responseMs,
-      failureReason: null
+      failureReason: null,
+      debug
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "检测失败";
-    const status = configPath && child ? "unavailable" : "error";
     return {
       nodeId: node.id,
-      status,
+      status: "unavailable",
       responseMs: null,
-      failureReason: message
+      failureReason: normalizeFailureReason(error),
+      debug
     };
   } finally {
     safeKill(child);

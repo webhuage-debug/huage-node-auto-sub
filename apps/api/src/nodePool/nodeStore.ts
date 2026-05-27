@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { resolveProjectPath } from "../config.js";
-import type { ImportSummary, NodePoolFile, NodePoolItem, NodeProtocol, NodeSourceType, NodeStatus, PublicNodePoolItem } from "./nodeTypes.js";
+import type { ImportSummary, NodeDetectionDebug, NodePoolFile, NodePoolItem, NodeProtocol, NodeSourceType, NodeStatus, PublicNodePoolItem } from "./nodeTypes.js";
 import { emptyProtocolStats } from "./nodeParser.js";
 
 const defaultFile: NodePoolFile = {
@@ -193,6 +193,7 @@ export async function updateNodeDetectionResult(
     detectionCore: string;
     responseMs: number | null;
     failureReason: string | null;
+    debug?: NodeDetectionDebug;
   }
 ): Promise<NodePoolItem | null> {
   const file = await readNodePoolFile();
@@ -213,6 +214,7 @@ export async function updateNodeDetectionResult(
   node.detectionCore = result.detectionCore;
   node.responseMs = result.responseMs;
   node.failureReason = result.failureReason;
+  node.detectionDebug = result.debug;
   node.testCount = previousTestCount + 1;
   node.successCount = previousSuccessCount + (success ? 1 : 0);
   node.failCount = previousFailCount + (success ? 0 : 1);

@@ -81,6 +81,18 @@ v0.4.2 验收项：
 - 前端检测管理页面显示 unsupported 原因提示。
 - 不提交 `cores/`、`data/`，不展示完整 raw 节点。
 
+v0.4.3 验收项：
+
+- `/api/status` 返回 `version=v0.4.3`。
+- VLESS Reality outbound 中 user 包含 `encryption=none`，`flow` 放在 user 对象中。
+- Reality 参数写入 `realitySettings`，不误写为 `tlsSettings`。
+- SOCKS 检测请求确认走 `socks5://127.0.0.1:随机端口`。
+- Xray inbound 仍只监听 `127.0.0.1`。
+- 检测结束清理 Xray 子进程和临时配置文件。
+- failureReason 能区分 SOCKS 请求失败、检测 URL 超时、TLS/Reality 握手失败、HTTP 状态异常。
+- 前端检测管理页面显示安全 debug 摘要，不展示 raw 节点。
+- 不生成订阅，不新增菜单，不提交 `cores/` 和 `data/`。
+
 ## 后续待补充内容
 
 补充 Docker 启动检查、接口测试、页面截图检查和真实业务版本验收项。

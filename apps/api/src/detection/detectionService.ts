@@ -47,7 +47,8 @@ async function persistDetectionResult(result: DetectionResult): Promise<void> {
     status: result.status as NodeStatus,
     detectionCore: "xray",
     responseMs: result.responseMs,
-    failureReason: result.failureReason
+    failureReason: result.failureReason,
+    debug: result.debug
   });
 }
 
@@ -102,6 +103,8 @@ export async function getXrayDetectionStatus() {
     lastError: state.lastError,
     timeoutSeconds: settings.timeoutSeconds,
     maxConcurrent: settings.maxConcurrent,
+    proxyType: "socks",
+    testUrl: settings.testUrl,
     message: installed ? null : xrayMissingMessage
   };
 }
@@ -171,7 +174,8 @@ export async function testOneNodeHandler(request: FastifyRequest, reply: Fastify
     status: result.status,
     responseMs: result.responseMs,
     failureReason: result.failureReason,
-    detectionCore: "xray"
+    detectionCore: "xray",
+    debug: result.debug
   };
 }
 

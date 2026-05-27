@@ -30,6 +30,16 @@ v0.4.2 增强解析边界：
 - VMess：支持 `vmess://base64(JSON)`，解析 `add/port/id/aid/net/type/host/path/tls/sni/alpn/fp`。
 - 不支持的 flow、transport、method 或缺失 host/port 时返回 `unsupported` 和简洁原因。
 
+v0.4.3 修复 VLESS Reality 检测链路：
+
+- VLESS user 固定写入 `encryption=none`，`flow=xtls-rprx-vision` 放在 user 对象中。
+- `security=reality` 时只生成 `realitySettings`，不生成 `tlsSettings`。
+- Reality 参数映射为 `serverName=sni`、`fingerprint=fp`、`publicKey=pbk/publicKey`、`shortId=sid/shortId`、`spiderX=spiderX/spx`。
+- 临时 Xray inbound 继续只监听 `127.0.0.1`，并使用随机本地 SOCKS 端口。
+- 检测请求必须通过 `socks5://127.0.0.1:随机端口` 访问检测 URL，不使用 Node 原生 fetch 直连。
+- 失败原因区分为 Xray 启动失败、SOCKS 请求失败、检测 URL 超时、TLS/Reality 握手失败、HTTP 状态异常。
+- debug 摘要只允许包含协议、传输、security、flow、代理类型、检测 URL 和检测核心，不包含 raw、uuid、password、publicKey、server 或完整配置。
+
 ## 后续待补充内容
 
 补充更完整的协议参数支持、检测失败分类、内核安装管理和检测队列优化。

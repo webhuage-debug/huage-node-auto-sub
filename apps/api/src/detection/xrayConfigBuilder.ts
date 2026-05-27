@@ -1,4 +1,4 @@
-import type { NodePoolItem } from "../nodePool/nodeTypes.js";
+import type { NodeDetectionDebug, NodePoolItem } from "../nodePool/nodeTypes.js";
 
 type BuildResult =
   | { ok: true; outbound: Record<string, unknown> }
@@ -104,11 +104,11 @@ function getStreamSettings(params: URLSearchParams, options: { allowReality: boo
     }
     streamSettings.security = "reality";
     streamSettings.realitySettings = {
-      serverName: firstParam(params, ["sni", "serverName"]) || undefined,
-      fingerprint: firstParam(params, ["fp", "fingerprint"]) || undefined,
+      serverName: firstParam(params, ["sni", "serverName"]),
+      fingerprint: firstParam(params, ["fp", "fingerprint"]) || "chrome",
       publicKey,
-      shortId: firstParam(params, ["sid", "shortId"]) || undefined,
-      spiderX: firstParam(params, ["spx", "spiderX"]) || undefined
+      shortId: firstParam(params, ["sid", "shortId"]),
+      spiderX: firstParam(params, ["spx", "spiderX"]) || "/"
     };
   }
 
@@ -172,7 +172,7 @@ function buildVless(raw: string): BuildResult {
             users: [
               {
                 id: decodeURIComponent(url.username),
-                encryption: firstParam(url.searchParams, ["encryption"]) || "none",
+                encryption: "none",
                 flow: flow || undefined
               }
             ]
@@ -409,6 +409,57 @@ function buildVmess(raw: string): BuildResult {
   } catch {
     return { ok: false, reason: "VMess JSON 解析失败" };
   }
+}
+
+export function getNodeDetectionDebug(node: NodePoolItem, testUrl: string): NodeDetectionDebug {
+  const fallback: NodeDetectionDebug = {
+    protocol: node.protocol,
+    network: "unknown",
+    security: "unknown",
+    flow: "",
+    proxyType: "socks",
+    testUrl,
+    detectionCore: "xray"
+  };
+
+  if (node.protocol === "vless" || node.protocol === "trojan") {
+    const url = parseUrl(node.raw);
+    if (!url) {
+      return fallback;
+    }
+
+    return {
+      ...fallback,
+      network: firstParam(url.searchParams, ["type", "network"]) || "tcp",
+      security: firstParam(url.searchParams, ["security", "tls"]) || "none",
+      flow: firstParam(url.searchParams, ["flow"])
+    };
+  }
+
+  if (node.protocol === "vmess") {
+    try {
+      const encoded = node.raw.replace(/^vmess:\/\//i, "");
+      const config = JSON.parse(decodeBase64Url(encoded)) as Record<string, unknown>;
+      return {
+        ...fallback,
+        network: valueOf(config, "net") || "tcp",
+        security: valueOf(config, "tls") || "none",
+        flow: ""
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
+  if (node.protocol === "ss") {
+    return {
+      ...fallback,
+      network: "tcp",
+      security: "none"
+    };
+  }
+
+  return fallback;
 }
 
 export function buildXrayConfig(node: NodePoolItem, localPort: number): BuildResult {

@@ -80,6 +80,15 @@ type NodePoolItem = {
   detectionCore?: string | null;
   responseMs?: number | null;
   failureReason?: string | null;
+  detectionDebug?: {
+    protocol: string;
+    network: string;
+    security: string;
+    flow: string;
+    proxyType: "socks";
+    testUrl: string;
+    detectionCore: "xray";
+  };
   testCount?: number;
   successCount?: number;
   failCount?: number;
@@ -120,6 +129,8 @@ type XrayDetectionStatus = {
   lastError: string | null;
   timeoutSeconds: number;
   maxConcurrent: number;
+  proxyType: "socks";
+  testUrl: string;
   message: string | null;
 };
 
@@ -138,7 +149,7 @@ type DetectionHistoryResponse = {
   items: DetectionHistoryItem[];
 };
 
-const appVersion = "v0.4.2";
+const appVersion = "v0.4.3";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -166,6 +177,19 @@ function formatDate(value: string | null) {
   }
 
   return new Date(value).toLocaleString("zh-CN");
+}
+
+function formatFailureReason(value?: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  const lower = value.toLowerCase();
+  if (lower.includes("bad record mac") || lower.includes("decryption failed") || lower.includes("reality") || lower.includes("tls")) {
+    return `Reality 握手失败，可能是配置映射或节点不可达。${value}`;
+  }
+
+  return value;
 }
 
 function formatStats(stats: Record<string, number> | undefined) {
@@ -208,6 +232,7 @@ function NodeListTable({ nodes }: { nodes: NodePoolItem[] }) {
             <th>状态</th>
             <th>响应</th>
             <th>失败原因</th>
+            <th>检测摘要</th>
             <th>首次发现时间</th>
             <th>最近检测时间</th>
           </tr>
@@ -215,7 +240,7 @@ function NodeListTable({ nodes }: { nodes: NodePoolItem[] }) {
         <tbody>
           {nodes.length === 0 ? (
             <tr>
-              <td colSpan={9}>暂无节点池数据</td>
+              <td colSpan={10}>暂无节点池数据</td>
             </tr>
           ) : (
             nodes.map((node) => (
@@ -226,7 +251,12 @@ function NodeListTable({ nodes }: { nodes: NodePoolItem[] }) {
                 <td>{node.sourceRepository || "-"}</td>
                 <td>{node.status}</td>
                 <td>{node.responseMs ? `${node.responseMs} ms` : "-"}</td>
-                <td className="wrap-cell">{node.failureReason || "-"}</td>
+                <td className="wrap-cell">{formatFailureReason(node.failureReason)}</td>
+                <td className="wrap-cell">
+                  {node.detectionDebug
+                    ? `${node.detectionDebug.protocol} / ${node.detectionDebug.network} / ${node.detectionDebug.security} / ${node.detectionDebug.flow || "-"} / ${node.detectionDebug.detectionCore}`
+                    : "-"}
+                </td>
                 <td>{formatDate(node.firstSeenAt)}</td>
                 <td>{formatDate(node.lastTestedAt || null)}</td>
               </tr>
@@ -564,18 +594,21 @@ function DetectionPage() {
   const [status, setStatus] = useState<NodePoolStatus | null>(null);
   const [xrayStatus, setXrayStatus] = useState<XrayDetectionStatus | null>(null);
   const [history, setHistory] = useState<DetectionHistoryItem[]>([]);
+  const [nodes, setNodes] = useState<NodePoolItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [testingLimit, setTestingLimit] = useState<number | null>(null);
 
   const loadDetectionData = useCallback(async () => {
-    const [nodeStatus, xrayData, historyData] = await Promise.all([
+    const [nodeStatus, xrayData, historyData, nodeData] = await Promise.all([
       fetchNodePoolStatus(),
       fetchXrayStatus(),
-      fetchDetectionHistory()
+      fetchDetectionHistory(),
+      fetchNodeList()
     ]);
     setStatus(nodeStatus);
     setXrayStatus(xrayData);
     setHistory(historyData.items || []);
+    setNodes(nodeData.items || []);
   }, []);
 
   useEffect(() => {
@@ -647,6 +680,16 @@ function DetectionPage() {
         </div>
       ) : null}
 
+      <h3 className="subheading">检测 debug 摘要</h3>
+      <InfoGrid
+        items={[
+          ["代理类型", xrayStatus?.proxyType || "socks"],
+          ["SOCKS 地址", "127.0.0.1:随机端口"],
+          ["检测核心", "xray"],
+          ["检测目标", xrayStatus?.testUrl || "https://www.gstatic.com/generate_204"]
+        ]}
+      />
+
       <h3 className="subheading">最近检测历史</h3>
       <div className="table-panel">
         <table>
@@ -680,6 +723,8 @@ function DetectionPage() {
           </tbody>
         </table>
       </div>
+      <h3 className="subheading">最近节点检测结果</h3>
+      <NodeListTable nodes={nodes} />
       <SectionNote>当前版本只支持 Xray-core 基础检测，不支持 sing-box / Mihomo，不生成订阅。</SectionNote>
     </>
   );

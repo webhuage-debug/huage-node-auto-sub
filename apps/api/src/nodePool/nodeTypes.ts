@@ -4,6 +4,16 @@ export type NodeSourceType = "github" | "manual";
 
 export type NodeStatus = "untested" | "testing" | "available" | "unavailable" | "unsupported" | "error";
 
+export type NodeDetectionDebug = {
+  protocol: string;
+  network: string;
+  security: string;
+  flow: string;
+  proxyType: "socks";
+  testUrl: string;
+  detectionCore: "xray";
+};
+
 export type NodePoolItem = {
   id: string;
   hash: string;
@@ -24,6 +34,7 @@ export type NodePoolItem = {
   detectionCore?: string | null;
   responseMs?: number | null;
   failureReason?: string | null;
+  detectionDebug?: NodeDetectionDebug;
   testCount?: number;
   successCount?: number;
   failCount?: number;
