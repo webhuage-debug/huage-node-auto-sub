@@ -7,6 +7,11 @@ export type SubscriptionFile = {
   minNodeCount: number;
   lastGeneratedAt: string | null;
   warning: string | null;
+  lastAutoRefreshAt?: string | null;
+  nextAutoRefreshAt?: string | null;
+  lastAutoRefreshOk?: boolean | null;
+  lastAutoRefreshWarning?: string | null;
+  lastAutoRefreshError?: string | null;
 };
 
 export type SubscriptionStatus = {
@@ -19,4 +24,17 @@ export type SubscriptionStatus = {
   minNodeCount: number;
   lastGeneratedAt: string | null;
   warning: string | null;
+  autoRefreshEnabled: boolean;
+  refreshIntervalMinutes: number;
+  lastAutoRefreshAt: string | null;
+  nextAutoRefreshAt: string | null;
+  lastAutoRefreshOk: boolean | null;
+  lastAutoRefreshWarning: string | null;
+  lastAutoRefreshError: string | null;
+};
+
+export type SubscriptionAutoRefreshRuntime = {
+  autoRefreshEnabled: boolean;
+  refreshIntervalMinutes: number;
+  nextAutoRefreshAt: string | null;
 };

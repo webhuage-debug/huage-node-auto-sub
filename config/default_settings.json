@@ -7,7 +7,9 @@
   "subscription": {
     "target_node_count": 20,
     "minimum_node_count": 10,
-    "valid_days": 15
+    "valid_days": 15,
+    "subscriptionAutoRefreshEnabled": true,
+    "subscriptionRefreshIntervalMinutes": 5
   },
   "detection": {
     "preferred_core": "xray",

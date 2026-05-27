@@ -167,9 +167,16 @@ type SubscriptionStatus = {
   minNodeCount: number;
   lastGeneratedAt: string | null;
   warning: string | null;
+  autoRefreshEnabled: boolean;
+  refreshIntervalMinutes: number;
+  lastAutoRefreshAt: string | null;
+  nextAutoRefreshAt: string | null;
+  lastAutoRefreshOk: boolean | null;
+  lastAutoRefreshWarning: string | null;
+  lastAutoRefreshError: string | null;
 };
 
-const appVersion = "v0.5.0";
+const appVersion = "v0.6.0";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -444,7 +451,7 @@ function OverviewPage() {
           ["内核状态", "未安装"]
         ]}
       />
-      <SectionNote>当前版本已支持 Xray-core 基础可用性检测，但不自动下载内核，不生成订阅。</SectionNote>
+      <SectionNote>当前版本已支持安全订阅链接和订阅缓存自动刷新，但不做二维码、领取页或 Telegram Bot。</SectionNote>
     </>
   );
 }
@@ -835,6 +842,12 @@ function SubscriptionPage() {
   const [rebuilding, setRebuilding] = useState(false);
 
   const safeUrl = status?.safeSubscriptionUrl ? `${window.location.origin}${status.safeSubscriptionUrl}` : "未生成";
+  const autoRefreshResult =
+    status?.lastAutoRefreshOk === null || status?.lastAutoRefreshOk === undefined
+      ? "暂无"
+      : status.lastAutoRefreshOk
+        ? "成功"
+        : "失败";
 
   const loadSubscriptionStatus = useCallback(async () => {
     try {
@@ -887,7 +900,14 @@ function SubscriptionPage() {
           ["最低保底节点数", String(status?.minNodeCount ?? 10)],
           ["最后生成时间", formatDate(status?.lastGeneratedAt || null)],
           ["当前状态", status?.generated ? "已生成" : "未生成"],
-          ["风险提示", status?.warning || "暂无"]
+          ["风险提示", status?.warning || "暂无"],
+          ["自动刷新", formatBool(Boolean(status?.autoRefreshEnabled), "已开启", "未开启")],
+          ["刷新间隔", `${status?.refreshIntervalMinutes ?? 5} 分钟`],
+          ["上次自动刷新时间", formatDate(status?.lastAutoRefreshAt || null)],
+          ["下次自动刷新时间", formatDate(status?.nextAutoRefreshAt || null)],
+          ["最近自动刷新结果", autoRefreshResult],
+          ["自动刷新 warning", status?.lastAutoRefreshWarning || "暂无"],
+          ["自动刷新错误", status?.lastAutoRefreshError || "暂无"]
         ]}
       />
       <div className="action-row">
@@ -904,7 +924,7 @@ function SubscriptionPage() {
           ["二维码", "后续版本支持"]
         ]}
       />
-      <SectionNote>当前版本只生成一个安全订阅链接，订阅内容由后台缓存输出。</SectionNote>
+      <SectionNote>当前版本只生成一个安全订阅链接，订阅内容由后台缓存输出，并按配置自动刷新缓存。</SectionNote>
     </>
   );
 }

@@ -128,3 +128,16 @@ v0.5.0 验收项：
 ## 后续待补充内容
 
 补充 Docker 启动检查、接口测试、页面截图检查和真实业务版本验收项。
+
+## v0.6.0 验收项
+
+- `/api/status` 返回 `version=v0.6.0`。
+- `/api/subscription/status` 返回 `autoRefreshEnabled`、`refreshIntervalMinutes`、`lastAutoRefreshAt`、`nextAutoRefreshAt`、`lastAutoRefreshOk`、`lastAutoRefreshWarning`、`lastAutoRefreshError`。
+- 自动刷新默认开启，默认间隔为 5 分钟。
+- 自动刷新复用已有 token，不会定时更换安全订阅链接。
+- 有可用节点时自动刷新能更新订阅缓存。
+- 无可用节点时不清空已有订阅内容，只记录 warning。
+- 手动刷新订阅仍然可用。
+- 订阅管理页显示自动刷新状态，仍然只显示一个安全订阅链接。
+- API 和页面不暴露 raw 节点。
+- 不新增菜单，不提交 `data/` 或 `cores/`。

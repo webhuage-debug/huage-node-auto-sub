@@ -1,11 +1,14 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { listSubscriptionCandidateNodes } from "../nodePool/nodeStore.js";
+import { getSubscriptionAutoRefreshRuntime } from "./subscriptionAutoRefresh.js";
 import { createSubscriptionToken, readSubscriptionFile, toSubscriptionStatus, writeSubscriptionFile } from "./subscriptionStore.js";
 import type { SubscriptionFile } from "./subscriptionTypes.js";
 
 type SubscriptionTokenParams = {
   token?: string;
 };
+
+type RebuildSource = "manual" | "auto";
 
 function numberEnv(name: string, fallback: number): number {
   const value = Number(process.env[name]);
@@ -19,6 +22,16 @@ function getSubscriptionSettings() {
   };
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return "未知错误";
+}
+
 function buildWarning(nodeCount: number, targetNodeCount: number, minNodeCount: number): string | null {
   if (nodeCount < minNodeCount) {
     return `当前可用节点不足 ${minNodeCount} 条，已生成保底订阅但建议继续补充节点。`;
@@ -29,31 +42,113 @@ function buildWarning(nodeCount: number, targetNodeCount: number, minNodeCount: 
   return null;
 }
 
-export async function getSubscriptionStatusHandler() {
-  const file = await readSubscriptionFile();
-  return toSubscriptionStatus(file);
+function withAutoRefreshResult(
+  file: SubscriptionFile,
+  result: {
+    ranAt: string;
+    ok: boolean;
+    warning: string | null;
+    error: string | null;
+    nextAutoRefreshAt: string | null;
+  }
+): SubscriptionFile {
+  return {
+    ...file,
+    lastAutoRefreshAt: result.ranAt,
+    nextAutoRefreshAt: result.nextAutoRefreshAt,
+    lastAutoRefreshOk: result.ok,
+    lastAutoRefreshWarning: result.warning,
+    lastAutoRefreshError: result.error
+  };
 }
 
-export async function rebuildSubscriptionHandler() {
+export async function getSubscriptionStatusHandler() {
+  const file = await readSubscriptionFile();
+  return toSubscriptionStatus(file, false, getSubscriptionAutoRefreshRuntime());
+}
+
+export async function rebuildSubscriptionCache(
+  source: RebuildSource,
+  nextAutoRefreshAt: string | null = null
+): Promise<{ file: SubscriptionFile; tokenCreated: boolean }> {
   const previous = await readSubscriptionFile();
   const settings = getSubscriptionSettings();
   const nodes = await listSubscriptionCandidateNodes(settings.targetNodeCount);
+  const ranAt = new Date().toISOString();
+
+  if (source === "auto" && nodes.length === 0) {
+    const warning = "当前可用节点为 0，自动刷新已保留上一次订阅缓存。";
+    const preserved = withAutoRefreshResult(
+      {
+        ...previous,
+        targetNodeCount: settings.targetNodeCount,
+        minNodeCount: settings.minNodeCount,
+        warning
+      },
+      {
+        ranAt,
+        ok: true,
+        warning,
+        error: null,
+        nextAutoRefreshAt
+      }
+    );
+    await writeSubscriptionFile(preserved);
+    return { file: preserved, tokenCreated: false };
+  }
+
   const tokenCreated = !previous.token;
   const token = previous.token || createSubscriptionToken();
   const contentBase64 = Buffer.from(nodes.map((node) => node.raw).join("\n"), "utf8").toString("base64");
+  const warning = buildWarning(nodes.length, settings.targetNodeCount, settings.minNodeCount);
   const nextFile: SubscriptionFile = {
+    ...previous,
     version: 1,
     token,
     contentBase64,
     nodeCount: nodes.length,
     targetNodeCount: settings.targetNodeCount,
     minNodeCount: settings.minNodeCount,
-    lastGeneratedAt: new Date().toISOString(),
-    warning: buildWarning(nodes.length, settings.targetNodeCount, settings.minNodeCount)
+    lastGeneratedAt: ranAt,
+    warning
   };
 
-  await writeSubscriptionFile(nextFile);
-  return toSubscriptionStatus(nextFile, tokenCreated);
+  const file =
+    source === "auto"
+      ? withAutoRefreshResult(nextFile, {
+          ranAt,
+          ok: true,
+          warning,
+          error: null,
+          nextAutoRefreshAt
+        })
+      : nextFile;
+
+  await writeSubscriptionFile(file);
+  return { file, tokenCreated };
+}
+
+export async function rebuildSubscriptionForAutoRefresh(nextAutoRefreshAt: string | null): Promise<SubscriptionFile> {
+  try {
+    const { file } = await rebuildSubscriptionCache("auto", nextAutoRefreshAt);
+    return file;
+  } catch (error) {
+    const previous = await readSubscriptionFile();
+    const failed = withAutoRefreshResult(previous, {
+      ranAt: new Date().toISOString(),
+      ok: false,
+      warning: null,
+      error: getErrorMessage(error),
+      nextAutoRefreshAt
+    });
+    await writeSubscriptionFile(failed);
+    return failed;
+  }
+}
+
+export async function rebuildSubscriptionHandler() {
+  const { file, tokenCreated } = await rebuildSubscriptionCache("manual");
+  return toSubscriptionStatus(file, tokenCreated, getSubscriptionAutoRefreshRuntime());
 }
 
 export async function publicSubscriptionHandler(request: FastifyRequest, reply: FastifyReply) {

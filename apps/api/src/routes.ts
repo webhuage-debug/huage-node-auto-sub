@@ -27,6 +27,7 @@ import {
   publicSubscriptionHandler,
   rebuildSubscriptionHandler
 } from "./subscription/subscriptionService.js";
+import { startSubscriptionAutoRefresh } from "./subscription/subscriptionAutoRefresh.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -89,6 +90,8 @@ function summarizeConfig(fileName: string, content: JsonRecord): JsonRecord {
     subscriptionRefreshIntervalMinutes: automation?.subscription_refresh_interval_minutes,
     targetNodeCount: subscription?.target_node_count,
     minimumNodeCount: subscription?.minimum_node_count,
+    subscriptionAutoRefreshEnabled: subscription?.subscriptionAutoRefreshEnabled,
+    subscriptionAutoRefreshIntervalMinutes: subscription?.subscriptionRefreshIntervalMinutes,
     validDays: subscription?.valid_days,
     preferredCore: detection?.preferred_core,
     detectionTimeoutSeconds: detection?.timeout_seconds,
@@ -97,6 +100,8 @@ function summarizeConfig(fileName: string, content: JsonRecord): JsonRecord {
 }
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
+  startSubscriptionAutoRefresh();
+
   app.get("/health", async () => ({ ok: true }));
 
   app.get("/api/status", async () => ({
