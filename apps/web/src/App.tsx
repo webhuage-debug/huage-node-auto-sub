@@ -176,7 +176,7 @@ type SubscriptionStatus = {
   lastAutoRefreshError: string | null;
 };
 
-const appVersion = "v0.6.0";
+const appVersion = "v0.6.1";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -884,9 +884,9 @@ function SubscriptionPage() {
 
     try {
       await navigator.clipboard.writeText(safeUrl);
-      setMessage("安全订阅链接已复制。");
+      setMessage("已复制安全订阅链接。");
     } catch {
-      setMessage("当前浏览器不支持自动复制，请手动复制链接。");
+      setMessage("当前浏览器不支持自动复制，请手动在接口中查看。");
     }
   }
 
@@ -894,7 +894,7 @@ function SubscriptionPage() {
     <>
       <InfoGrid
         items={[
-          ["安全订阅链接", safeUrl],
+          ["安全订阅", status?.generated ? "已生成" : "未生成"],
           ["当前订阅节点数", String(status?.nodeCount ?? 0)],
           ["目标节点数", String(status?.targetNodeCount ?? 20)],
           ["最低保底节点数", String(status?.minNodeCount ?? 10)],

@@ -16,7 +16,7 @@ export const appConfig: AppConfig = {
   host: process.env.APP_HOST || "0.0.0.0",
   port: Number(process.env.APP_PORT || 3000),
   name: "华哥自动节点订阅池",
-  version: "v0.6.0"
+  version: "v0.6.1"
 };
 
 export function findProjectFile(...segments: string[]): string {
