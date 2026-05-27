@@ -175,3 +175,15 @@ v0.5.0 验收项：
 - 页面不显示完整订阅链接、`/sub/xxxx` 或 token。
 - 页面不显示 raw/base64 两个链接。
 - 不修改订阅 token 生成规则，不修改自动刷新逻辑，不提交 `data/` 或 `cores/`。
+
+## v0.6.4 验收项
+
+- `/api/status` 返回 `version=v0.6.4`。
+- `POST /api/subscription/reset-token` 可用。
+- reset-token 后 `safeSubscriptionUrl` 改变。
+- reset-token 后旧 token 访问返回 404，新 token 访问返回 200。
+- reset-token 后当前订阅内容继续保留，公开订阅域名配置不变。
+- 订阅管理页提供“重置安全订阅链接”按钮，并有二次确认。
+- 页面不显示完整订阅链接、`/sub/xxxx` 或 token。
+- 页面不显示 raw/base64 两个链接。
+- 自动刷新状态仍显示，不提交 `data/` 或 `cores/`。

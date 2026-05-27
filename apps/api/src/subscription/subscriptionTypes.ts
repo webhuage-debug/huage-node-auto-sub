@@ -34,6 +34,7 @@ export type SubscriptionStatus = {
   publicBaseUrlConfigured?: boolean;
   publicSubscriptionBaseUrl?: string | null;
   copyableSubscriptionUrlReady?: boolean;
+  message?: string;
 };
 
 export type SubscriptionAutoRefreshRuntime = {

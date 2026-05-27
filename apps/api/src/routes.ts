@@ -25,7 +25,8 @@ import {
 import {
   getSubscriptionStatusHandler,
   publicSubscriptionHandler,
-  rebuildSubscriptionHandler
+  rebuildSubscriptionHandler,
+  resetSubscriptionTokenHandler
 } from "./subscription/subscriptionService.js";
 import { startSubscriptionAutoRefresh } from "./subscription/subscriptionAutoRefresh.js";
 
@@ -154,6 +155,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/subscription/status", async () => getSubscriptionStatusHandler());
 
   app.post("/api/subscription/rebuild", async () => rebuildSubscriptionHandler());
+
+  app.post("/api/subscription/reset-token", async () => resetSubscriptionTokenHandler());
 
   app.get("/sub/:token", async (request, reply) => publicSubscriptionHandler(request, reply));
 

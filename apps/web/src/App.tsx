@@ -179,7 +179,7 @@ type SubscriptionStatus = {
   copyableSubscriptionUrlReady: boolean;
 };
 
-const appVersion = "v0.6.3";
+const appVersion = "v0.6.4";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -443,6 +443,19 @@ async function rebuildSubscription(): Promise<SubscriptionStatus> {
 
   if (!response.ok || payload.ok === false) {
     throw new Error(payload.message || payload.error || "生成订阅失败");
+  }
+
+  return payload;
+}
+
+async function resetSubscriptionToken(): Promise<SubscriptionStatus> {
+  const response = await fetch("/api/subscription/reset-token", {
+    method: "POST"
+  });
+  const payload = await response.json();
+
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.message || payload.error || "重置安全订阅链接失败");
   }
 
   return payload;
@@ -878,6 +891,7 @@ function SubscriptionPage() {
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
+  const [resettingToken, setResettingToken] = useState(false);
 
   const autoRefreshResult =
     status?.lastAutoRefreshOk === null || status?.lastAutoRefreshOk === undefined
@@ -933,6 +947,26 @@ function SubscriptionPage() {
     setMessage("自动复制失败，请检查浏览器权限或使用 HTTPS 后重试");
   }
 
+  async function handleResetSubscriptionToken() {
+    const confirmed = window.confirm("重置后旧订阅链接将失效，确定继续吗？");
+    if (!confirmed) {
+      return;
+    }
+
+    setResettingToken(true);
+    setMessage(null);
+
+    try {
+      const nextStatus = await resetSubscriptionToken();
+      setStatus(nextStatus);
+      setMessage("安全订阅链接已重置，请重新复制新链接");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "重置安全订阅链接失败");
+    } finally {
+      setResettingToken(false);
+    }
+  }
+
   return (
     <>
       <InfoGrid
@@ -960,6 +994,9 @@ function SubscriptionPage() {
         </button>
         <button onClick={handleCopySafeLink}>
           复制安全订阅链接
+        </button>
+        <button disabled={resettingToken} onClick={handleResetSubscriptionToken}>
+          {resettingToken ? "正在重置..." : "重置安全订阅链接"}
         </button>
       </div>
       {message ? <div className="inline-message">{message}</div> : null}

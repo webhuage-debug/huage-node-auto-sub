@@ -169,6 +169,45 @@ export async function rebuildSubscriptionHandler() {
   return withPublicSubscriptionConfig(toSubscriptionStatus(file, tokenCreated, getSubscriptionAutoRefreshRuntime()));
 }
 
+export async function resetSubscriptionTokenHandler() {
+  const previous = await readSubscriptionFile();
+  const settings = getSubscriptionSettings();
+  const now = new Date().toISOString();
+  const newToken = createSubscriptionToken();
+  const hasExistingCache = Boolean(previous.token && previous.lastGeneratedAt);
+  let nextFile: SubscriptionFile;
+
+  if (hasExistingCache) {
+    nextFile = {
+      ...previous,
+      token: newToken,
+      targetNodeCount: settings.targetNodeCount,
+      minNodeCount: settings.minNodeCount,
+      lastGeneratedAt: now
+    };
+  } else {
+    const nodes = await listSubscriptionCandidateNodes(settings.targetNodeCount);
+    const warning = buildWarning(nodes.length, settings.targetNodeCount, settings.minNodeCount);
+    nextFile = {
+      ...previous,
+      version: 1,
+      token: newToken,
+      contentBase64: Buffer.from(nodes.map((node) => node.raw).join("\n"), "utf8").toString("base64"),
+      nodeCount: nodes.length,
+      targetNodeCount: settings.targetNodeCount,
+      minNodeCount: settings.minNodeCount,
+      lastGeneratedAt: now,
+      warning
+    };
+  }
+
+  await writeSubscriptionFile(nextFile);
+  return {
+    ...withPublicSubscriptionConfig(toSubscriptionStatus(nextFile, true, getSubscriptionAutoRefreshRuntime())),
+    message: "安全订阅链接已重置"
+  };
+}
+
 export async function publicSubscriptionHandler(request: FastifyRequest, reply: FastifyReply) {
   const params = request.params as SubscriptionTokenParams;
   const file = await readSubscriptionFile();
