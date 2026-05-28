@@ -163,7 +163,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/api/subscription/renew-expiration", async () => renewSubscriptionExpirationHandler());
 
-  app.post("/api/claim/verify", async (request) => verifyClaimCodeHandler(request));
+  app.post("/api/claim/verify", async (request, reply) => verifyClaimCodeHandler(request, reply));
 
   app.get("/sub/:token", async (request, reply) => publicSubscriptionHandler(request, reply));
 

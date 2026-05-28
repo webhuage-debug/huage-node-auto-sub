@@ -193,10 +193,12 @@ type ClaimVerifyResponse = {
   claimAllowed: boolean;
   subscriptionReady: boolean;
   copyableSubscriptionUrl?: string;
+  remainingAttempts?: number;
+  retryAfterSeconds?: number;
   error?: string;
 };
 
-const appVersion = "v0.8.1";
+const appVersion = "v0.8.2";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -306,6 +308,15 @@ function formatRemainingTime(status: SubscriptionStatus | null): string {
     return "已过期";
   }
   return `${status.remainingDays} 天`;
+}
+
+function formatRetryAfter(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return "请稍后再试。";
+  }
+
+  const minutes = Math.ceil(seconds / 60);
+  return `大约 ${minutes} 分钟后再试。`;
 }
 
 function getQrUnavailableReason(status: SubscriptionStatus | null): string | null {
@@ -1084,7 +1095,7 @@ function SubscriptionPage() {
 
     const canvas = qrPanelRef.current?.querySelector("canvas");
     if (!canvas) {
-      setMessage("二维码尚未生成，请稍后重试");
+      setMessage("二维码下载失败，请检查订阅状态");
       return;
     }
 
@@ -1094,7 +1105,7 @@ function SubscriptionPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setMessage("二维码已下载。");
+    setMessage("二维码已下载");
   }
 
   return (
@@ -1144,15 +1155,18 @@ function SubscriptionPage() {
       <section className="qr-panel">
         <h3 className="subheading">订阅二维码</h3>
         {qrContent ? (
-          <div className="qr-card" ref={qrPanelRef}>
-            <QRCodeCanvas value={qrContent} size={180} level="M" includeMargin />
-            <div className="qr-meta">
-              <strong>二维码已生成</strong>
-              <span>二维码内容使用公开订阅地址生成，页面不会显示完整链接或敏感片段。</span>
+          <div className="qr-status-card">
+            <strong>订阅二维码：已生成</strong>
+            <span>二维码已准备好，点击按钮可下载二维码图片；页面不会直接展示二维码内容。</span>
+            <div className="qr-hidden-canvas" ref={qrPanelRef} aria-hidden="true">
+              <QRCodeCanvas value={qrContent} size={220} level="M" includeMargin />
             </div>
           </div>
         ) : (
-          <div className="qr-unavailable">{qrUnavailableReason}</div>
+          <div className="qr-status-card unavailable">
+            <strong>订阅二维码：不可用</strong>
+            <span>{qrUnavailableReason}</span>
+          </div>
         )}
       </section>
       <SectionNote>当前版本只生成一个安全订阅链接，订阅内容由后台缓存输出，并按配置自动刷新缓存。</SectionNote>
@@ -1346,7 +1360,10 @@ function ClaimPage() {
       const result = await verifyClaimCode(code);
       if (!result.ok || !result.claimAllowed || !result.subscriptionReady || !result.copyableSubscriptionUrl) {
         setMessageTone("error");
-        setMessage(result.message || "口令验证失败，请稍后再试。");
+        const retryText = result.retryAfterSeconds ? ` ${formatRetryAfter(result.retryAfterSeconds)}` : "";
+        const remainingText =
+          typeof result.remainingAttempts === "number" ? ` 还可尝试 ${result.remainingAttempts} 次。` : "";
+        setMessage(`${result.message || "口令验证失败，请稍后再试。"}${remainingText}${retryText}`);
         return;
       }
 

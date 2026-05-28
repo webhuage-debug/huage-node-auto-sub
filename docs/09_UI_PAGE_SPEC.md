@@ -144,3 +144,15 @@ v0.5.0 订阅管理页面：
 - 点击“复制订阅链接”时复制 `copyableSubscriptionUrl`。
 - 页面不显示 `copyableSubscriptionUrl`、完整订阅链接、`/sub/{token}` 或 token。
 - 口令错误、订阅未生成、订阅过期、公开域名未配置等错误直接展示后端 `message`。
+
+## v0.8.2 领取页防刷和二维码下载
+
+- `/claim` 页面验证按钮点击后进入 loading 状态，避免重复点击。
+- 口令错误时显示后端 `message`。
+- 如果后端返回 `remainingAttempts`，页面显示“还可尝试 X 次”。
+- 如果后端返回 `CLAIM_TOO_MANY_ATTEMPTS` 和 `retryAfterSeconds`，页面显示冷却提示。
+- 口令正确后仍只显示“复制订阅链接”按钮，不显示完整链接或 token。
+- 订阅管理页不再直接显示二维码图片或可见 canvas。
+- 二维码区域只显示“订阅二维码：已生成 / 不可用”和原因说明。
+- 点击“下载二维码”时临时生成并下载 `huage-secure-subscription-qr.png`。
+- 订阅管理页不显示完整订阅链接、`/sub/{token}`、token、raw 节点或 raw/base64 链接。

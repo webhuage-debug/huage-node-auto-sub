@@ -239,3 +239,18 @@ v0.5.0 验收项：
 - `/claim` 页面不显示完整链接、`/sub/{token}`、token、后台信息或 raw/base64 内容。
 - 点击复制按钮复制 `copyableSubscriptionUrl`。
 - 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。
+
+## v0.8.2 验收项
+
+- `/api/status` 返回 `version=v0.8.2`。
+- `POST /api/claim/verify` 口令错误会累计失败次数。
+- 达到失败阈值后返回 HTTP 429 和 `CLAIM_TOO_MANY_ATTEMPTS`。
+- 冷却期内不返回 `copyableSubscriptionUrl`。
+- 口令正确后返回 `copyableSubscriptionUrl`，并清除该 IP 的失败计数。
+- `/claim` 页面显示错误次数或冷却提示。
+- `/claim` 页面不显示 token、完整订阅链接、后台信息或 raw/base64 内容。
+- 订阅管理页不再直接显示二维码图片。
+- 订阅管理页仍有“下载二维码”按钮。
+- 点击下载二维码后能下载 `huage-secure-subscription-qr.png`。
+- 下载的二维码内容仍是公开订阅地址。
+- 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。

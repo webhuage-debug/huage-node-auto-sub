@@ -1,6 +1,12 @@
-import type { FastifyRequest } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { readSubscriptionFile } from "../subscription/subscriptionStore.js";
 import type { ClaimVerifyBody, ClaimVerifyResponse } from "./claimTypes.js";
+import {
+  clearClaimFailures,
+  getClaimClientIp,
+  getClaimRateLimitStatus,
+  recordClaimFailure
+} from "./claimRateLimiter.js";
 
 function getClaimAccessCode(): string | null {
   const value = process.env.CLAIM_ACCESS_CODE?.trim();
@@ -22,7 +28,28 @@ function isSubscriptionExpired(expiresAt?: string | null): boolean {
   return Boolean(expiresAt && Date.now() >= new Date(expiresAt).getTime());
 }
 
-export async function verifyClaimCodeHandler(request: FastifyRequest): Promise<ClaimVerifyResponse> {
+function tooManyAttemptsResponse(retryAfterSeconds: number | null): ClaimVerifyResponse {
+  return {
+    ok: false,
+    error: "CLAIM_TOO_MANY_ATTEMPTS",
+    message: "口令错误次数过多，请稍后再试",
+    claimAllowed: false,
+    subscriptionReady: false,
+    retryAfterSeconds: retryAfterSeconds || undefined
+  };
+}
+
+export async function verifyClaimCodeHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<ClaimVerifyResponse> {
+  const clientIp = getClaimClientIp(request);
+  const rateLimitStatus = getClaimRateLimitStatus(clientIp);
+  if (rateLimitStatus.locked) {
+    reply.code(429);
+    return tooManyAttemptsResponse(rateLimitStatus.retryAfterSeconds);
+  }
+
   const configuredCode = getClaimAccessCode();
   if (!configuredCode) {
     return {
@@ -37,14 +64,23 @@ export async function verifyClaimCodeHandler(request: FastifyRequest): Promise<C
   const body = request.body as ClaimVerifyBody | undefined;
   const inputCode = typeof body?.code === "string" ? body.code.trim() : "";
   if (inputCode !== configuredCode) {
+    const failure = recordClaimFailure(clientIp);
+    if (failure.locked) {
+      reply.code(429);
+      return tooManyAttemptsResponse(failure.retryAfterSeconds);
+    }
+
     return {
       ok: false,
       error: "INVALID_CLAIM_CODE",
       message: "口令错误，请检查视频中的口令",
       claimAllowed: false,
-      subscriptionReady: false
+      subscriptionReady: false,
+      remainingAttempts: failure.remainingAttempts
     };
   }
+
+  clearClaimFailures(clientIp);
 
   const file = await readSubscriptionFile();
   const generated = Boolean(file.token && file.lastGeneratedAt);

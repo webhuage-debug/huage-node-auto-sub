@@ -12,7 +12,10 @@
     "subscriptionRefreshIntervalMinutes": 5,
     "subscriptionPublicBaseUrl": "",
     "subscriptionValidityDays": 15,
-    "claimAccessCode": ""
+    "claimAccessCode": "",
+    "claimVerifyMaxFailedAttempts": 5,
+    "claimVerifyWindowMinutes": 15,
+    "claimVerifyLockMinutes": 15
   },
   "detection": {
     "preferred_core": "xray",
