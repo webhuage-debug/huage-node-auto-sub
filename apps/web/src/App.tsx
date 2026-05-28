@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { QRCodeCanvas } from "qrcode.react";
 
 type MenuKey =
   | "overview"
@@ -186,7 +187,7 @@ type SubscriptionStatus = {
   subscriptionAccessible: boolean;
 };
 
-const appVersion = "v0.7.0";
+const appVersion = "v0.7.1";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -296,6 +297,31 @@ function formatRemainingTime(status: SubscriptionStatus | null): string {
     return "已过期";
   }
   return `${status.remainingDays} 天`;
+}
+
+function getQrUnavailableReason(status: SubscriptionStatus | null): string | null {
+  if (!status?.generated || !status.safeSubscriptionUrl) {
+    return "请先生成安全订阅。";
+  }
+  if (!status.publicBaseUrlConfigured || !status.publicSubscriptionBaseUrl) {
+    return "请先配置公开订阅域名 SUBSCRIPTION_PUBLIC_BASE_URL。";
+  }
+  if (status.expired || !status.subscriptionAccessible) {
+    return "订阅已过期，请先续期。";
+  }
+  if (!status.copyableSubscriptionUrlReady) {
+    return "公开订阅链接暂不可用，请检查公开订阅域名配置。";
+  }
+  return null;
+}
+
+function getPublicSubscriptionUrl(status: SubscriptionStatus | null): string | null {
+  const unavailableReason = getQrUnavailableReason(status);
+  if (unavailableReason || !status?.publicSubscriptionBaseUrl || !status.safeSubscriptionUrl) {
+    return null;
+  }
+
+  return joinPublicSubscriptionUrl(status.publicSubscriptionBaseUrl, status.safeSubscriptionUrl);
 }
 
 function InfoGrid({ items }: { items: Array<[string, string]> }) {
@@ -539,7 +565,7 @@ function OverviewPage() {
           ["内核状态", "未安装"]
         ]}
       />
-      <SectionNote>当前版本已支持安全订阅链接和订阅缓存自动刷新，但不做二维码、领取页或 Telegram Bot。</SectionNote>
+      <SectionNote>当前版本已支持安全订阅链接、订阅缓存自动刷新和订阅二维码展示，但不做领取页或 Telegram Bot。</SectionNote>
     </>
   );
 }
@@ -930,6 +956,10 @@ function SubscriptionPage() {
   const [rebuilding, setRebuilding] = useState(false);
   const [resettingToken, setResettingToken] = useState(false);
   const [renewingExpiration, setRenewingExpiration] = useState(false);
+  const qrPanelRef = useRef<HTMLDivElement | null>(null);
+
+  const qrUnavailableReason = getQrUnavailableReason(status);
+  const qrContent = getPublicSubscriptionUrl(status);
 
   const autoRefreshResult =
     status?.lastAutoRefreshOk === null || status?.lastAutoRefreshOk === undefined
@@ -1025,6 +1055,27 @@ function SubscriptionPage() {
     }
   }
 
+  function handleDownloadQrCode() {
+    if (!qrContent) {
+      setMessage(qrUnavailableReason || "二维码暂不可用");
+      return;
+    }
+
+    const canvas = qrPanelRef.current?.querySelector("canvas");
+    if (!canvas) {
+      setMessage("二维码尚未生成，请稍后重试");
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/png");
+    link.download = "huage-secure-subscription-qr.png";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setMessage("二维码已下载。");
+  }
+
   return (
     <>
       <InfoGrid
@@ -1058,6 +1109,9 @@ function SubscriptionPage() {
         <button onClick={handleCopySafeLink}>
           复制安全订阅链接
         </button>
+        <button disabled={!qrContent} onClick={handleDownloadQrCode}>
+          下载二维码
+        </button>
         <button disabled={resettingToken} onClick={handleResetSubscriptionToken}>
           {resettingToken ? "正在重置..." : "重置安全订阅链接"}
         </button>
@@ -1066,11 +1120,20 @@ function SubscriptionPage() {
         </button>
       </div>
       {message ? <div className="inline-message">{message}</div> : null}
-      <InfoGrid
-        items={[
-          ["二维码", "后续版本支持"]
-        ]}
-      />
+      <section className="qr-panel">
+        <h3 className="subheading">订阅二维码</h3>
+        {qrContent ? (
+          <div className="qr-card" ref={qrPanelRef}>
+            <QRCodeCanvas value={qrContent} size={180} level="M" includeMargin />
+            <div className="qr-meta">
+              <strong>二维码已生成</strong>
+              <span>二维码内容使用公开订阅地址生成，页面不会显示完整链接或敏感片段。</span>
+            </div>
+          </div>
+        ) : (
+          <div className="qr-unavailable">{qrUnavailableReason}</div>
+        )}
+      </section>
       <SectionNote>当前版本只生成一个安全订阅链接，订阅内容由后台缓存输出，并按配置自动刷新缓存。</SectionNote>
     </>
   );
