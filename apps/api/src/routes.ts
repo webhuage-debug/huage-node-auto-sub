@@ -26,6 +26,7 @@ import {
   getSubscriptionStatusHandler,
   publicSubscriptionHandler,
   rebuildSubscriptionHandler,
+  renewSubscriptionExpirationHandler,
   resetSubscriptionTokenHandler
 } from "./subscription/subscriptionService.js";
 import { startSubscriptionAutoRefresh } from "./subscription/subscriptionAutoRefresh.js";
@@ -94,6 +95,7 @@ function summarizeConfig(fileName: string, content: JsonRecord): JsonRecord {
     subscriptionAutoRefreshEnabled: subscription?.subscriptionAutoRefreshEnabled,
     subscriptionAutoRefreshIntervalMinutes: subscription?.subscriptionRefreshIntervalMinutes,
     subscriptionPublicBaseUrlConfigured: Boolean(subscription?.subscriptionPublicBaseUrl),
+    subscriptionValidityDays: subscription?.subscriptionValidityDays,
     validDays: subscription?.valid_days,
     preferredCore: detection?.preferred_core,
     detectionTimeoutSeconds: detection?.timeout_seconds,
@@ -157,6 +159,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/subscription/rebuild", async () => rebuildSubscriptionHandler());
 
   app.post("/api/subscription/reset-token", async () => resetSubscriptionTokenHandler());
+
+  app.post("/api/subscription/renew-expiration", async () => renewSubscriptionExpirationHandler());
 
   app.get("/sub/:token", async (request, reply) => publicSubscriptionHandler(request, reply));
 

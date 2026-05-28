@@ -187,3 +187,18 @@ v0.5.0 验收项：
 - 页面不显示完整订阅链接、`/sub/xxxx` 或 token。
 - 页面不显示 raw/base64 两个链接。
 - 自动刷新状态仍显示，不提交 `data/` 或 `cores/`。
+
+## v0.7.0 验收项
+
+- `/api/status` 返回 `version=v0.7.0`。
+- `/api/subscription/status` 返回 `expiresAt`、`expired`、`remainingSeconds`、`remainingDays`。
+- 第一次生成订阅时会生成 `expiresAt`。
+- 手动刷新、自动刷新和 reset-token 不会自动延长已有 `expiresAt`。
+- `POST /api/subscription/renew-expiration` 可以续期。
+- 续期后 `expiresAt` 变为当前时间加配置天数。
+- 未过期 token 访问 `/sub/:token` 返回 200。
+- 过期 token 访问 `/sub/:token` 返回 410。
+- 错误 token 访问 `/sub/:token` 返回 404。
+- 页面显示订阅有效期、到期时间和剩余时间。
+- 页面不显示 token、完整链接或 raw/base64 两个链接。
+- 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。

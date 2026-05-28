@@ -10,7 +10,8 @@
     "valid_days": 15,
     "subscriptionAutoRefreshEnabled": true,
     "subscriptionRefreshIntervalMinutes": 5,
-    "subscriptionPublicBaseUrl": ""
+    "subscriptionPublicBaseUrl": "",
+    "subscriptionValidityDays": 15
   },
   "detection": {
     "preferred_core": "xray",

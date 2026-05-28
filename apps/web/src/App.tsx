@@ -177,9 +177,16 @@ type SubscriptionStatus = {
   publicBaseUrlConfigured: boolean;
   publicSubscriptionBaseUrl: string | null;
   copyableSubscriptionUrlReady: boolean;
+  expiresAt: string | null;
+  validityDays: number;
+  expirationUpdatedAt: string | null;
+  expired: boolean;
+  remainingSeconds: number;
+  remainingDays: number;
+  subscriptionAccessible: boolean;
 };
 
-const appVersion = "v0.6.4";
+const appVersion = "v0.7.0";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -272,6 +279,23 @@ function joinPublicSubscriptionUrl(baseUrl: string, subscriptionPath: string): s
   const base = baseUrl.replace(/\/+$/g, "");
   const path = subscriptionPath.startsWith("/") ? subscriptionPath : `/${subscriptionPath}`;
   return `${base}${path}`;
+}
+
+function formatSubscriptionExpiration(status: SubscriptionStatus | null): string {
+  if (!status?.generated) {
+    return "未生成";
+  }
+  return status.expired ? "已过期" : "有效";
+}
+
+function formatRemainingTime(status: SubscriptionStatus | null): string {
+  if (!status?.generated || !status.expiresAt) {
+    return "暂无";
+  }
+  if (status.expired || status.remainingSeconds <= 0) {
+    return "已过期";
+  }
+  return `${status.remainingDays} 天`;
 }
 
 function InfoGrid({ items }: { items: Array<[string, string]> }) {
@@ -456,6 +480,19 @@ async function resetSubscriptionToken(): Promise<SubscriptionStatus> {
 
   if (!response.ok || payload.ok === false) {
     throw new Error(payload.message || payload.error || "重置安全订阅链接失败");
+  }
+
+  return payload;
+}
+
+async function renewSubscriptionExpiration(): Promise<SubscriptionStatus> {
+  const response = await fetch("/api/subscription/renew-expiration", {
+    method: "POST"
+  });
+  const payload = await response.json();
+
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.message || payload.error || "订阅续期失败，请检查服务状态");
   }
 
   return payload;
@@ -892,6 +929,7 @@ function SubscriptionPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
   const [resettingToken, setResettingToken] = useState(false);
+  const [renewingExpiration, setRenewingExpiration] = useState(false);
 
   const autoRefreshResult =
     status?.lastAutoRefreshOk === null || status?.lastAutoRefreshOk === undefined
@@ -967,12 +1005,37 @@ function SubscriptionPage() {
     }
   }
 
+  async function handleRenewExpiration() {
+    const confirmed = window.confirm("续期后订阅有效期将从现在开始重新计算，确定继续吗？");
+    if (!confirmed) {
+      return;
+    }
+
+    setRenewingExpiration(true);
+    setMessage(null);
+
+    try {
+      const nextStatus = await renewSubscriptionExpiration();
+      setStatus(nextStatus);
+      setMessage("订阅有效期已续期");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "订阅续期失败，请检查服务状态");
+    } finally {
+      setRenewingExpiration(false);
+    }
+  }
+
   return (
     <>
       <InfoGrid
         items={[
           ["安全订阅", status?.generated ? "已生成" : "未生成"],
           ["公开订阅域名", formatBool(Boolean(status?.publicBaseUrlConfigured), "已配置", "未配置")],
+          ["订阅有效期", formatSubscriptionExpiration(status)],
+          ["到期时间", formatDate(status?.expiresAt || null)],
+          ["剩余时间", formatRemainingTime(status)],
+          ["有效期天数", String(status?.validityDays ?? 15)],
+          ["最近续期时间", formatDate(status?.expirationUpdatedAt || null)],
           ["当前订阅节点数", String(status?.nodeCount ?? 0)],
           ["目标节点数", String(status?.targetNodeCount ?? 20)],
           ["最低保底节点数", String(status?.minNodeCount ?? 10)],
@@ -997,6 +1060,9 @@ function SubscriptionPage() {
         </button>
         <button disabled={resettingToken} onClick={handleResetSubscriptionToken}>
           {resettingToken ? "正在重置..." : "重置安全订阅链接"}
+        </button>
+        <button disabled={renewingExpiration} onClick={handleRenewExpiration}>
+          {renewingExpiration ? "正在续期..." : "续期订阅有效期"}
         </button>
       </div>
       {message ? <div className="inline-message">{message}</div> : null}

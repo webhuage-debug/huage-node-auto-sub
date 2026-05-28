@@ -12,6 +12,9 @@ export type SubscriptionFile = {
   lastAutoRefreshOk?: boolean | null;
   lastAutoRefreshWarning?: string | null;
   lastAutoRefreshError?: string | null;
+  expiresAt?: string | null;
+  validityDays?: number;
+  expirationUpdatedAt?: string | null;
 };
 
 export type SubscriptionStatus = {
@@ -34,6 +37,13 @@ export type SubscriptionStatus = {
   publicBaseUrlConfigured?: boolean;
   publicSubscriptionBaseUrl?: string | null;
   copyableSubscriptionUrlReady?: boolean;
+  expiresAt: string | null;
+  validityDays: number;
+  expirationUpdatedAt: string | null;
+  expired: boolean;
+  remainingSeconds: number;
+  remainingDays: number;
+  subscriptionAccessible: boolean;
   message?: string;
 };
 

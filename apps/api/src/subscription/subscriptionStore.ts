@@ -17,7 +17,10 @@ const defaultSubscriptionFile: SubscriptionFile = {
   nextAutoRefreshAt: null,
   lastAutoRefreshOk: null,
   lastAutoRefreshWarning: null,
-  lastAutoRefreshError: null
+  lastAutoRefreshError: null,
+  expiresAt: null,
+  validityDays: 15,
+  expirationUpdatedAt: null
 };
 
 function getSubscriptionFilePath(): string {
@@ -54,7 +57,10 @@ export async function readSubscriptionFile(): Promise<SubscriptionFile> {
     nextAutoRefreshAt: parsed.nextAutoRefreshAt || null,
     lastAutoRefreshOk: typeof parsed.lastAutoRefreshOk === "boolean" ? parsed.lastAutoRefreshOk : null,
     lastAutoRefreshWarning: parsed.lastAutoRefreshWarning || null,
-    lastAutoRefreshError: parsed.lastAutoRefreshError || null
+    lastAutoRefreshError: parsed.lastAutoRefreshError || null,
+    expiresAt: parsed.expiresAt || null,
+    validityDays: Number(parsed.validityDays || 15),
+    expirationUpdatedAt: parsed.expirationUpdatedAt || null
   };
 }
 
@@ -76,9 +82,15 @@ export function toSubscriptionStatus(
     nextAutoRefreshAt: file.nextAutoRefreshAt || null
   }
 ): SubscriptionStatus {
+  const now = Date.now();
+  const expiresAtTime = file.expiresAt ? new Date(file.expiresAt).getTime() : null;
+  const generated = Boolean(file.token && file.lastGeneratedAt);
+  const expired = Boolean(expiresAtTime && now >= expiresAtTime);
+  const remainingSeconds = expiresAtTime && now < expiresAtTime ? Math.max(0, Math.floor((expiresAtTime - now) / 1000)) : 0;
+
   return {
     ok: true,
-    generated: Boolean(file.token && file.lastGeneratedAt),
+    generated,
     tokenCreated,
     safeSubscriptionUrl: file.token ? `/sub/${file.token}` : null,
     nodeCount: file.nodeCount,
@@ -92,6 +104,13 @@ export function toSubscriptionStatus(
     nextAutoRefreshAt: runtime.nextAutoRefreshAt || file.nextAutoRefreshAt || null,
     lastAutoRefreshOk: typeof file.lastAutoRefreshOk === "boolean" ? file.lastAutoRefreshOk : null,
     lastAutoRefreshWarning: file.lastAutoRefreshWarning || null,
-    lastAutoRefreshError: file.lastAutoRefreshError || null
+    lastAutoRefreshError: file.lastAutoRefreshError || null,
+    expiresAt: file.expiresAt || null,
+    validityDays: Number(file.validityDays || 15),
+    expirationUpdatedAt: file.expirationUpdatedAt || null,
+    expired,
+    remainingSeconds,
+    remainingDays: remainingSeconds > 0 ? Math.ceil(remainingSeconds / 86400) : 0,
+    subscriptionAccessible: generated && Boolean(file.token) && !expired
   };
 }

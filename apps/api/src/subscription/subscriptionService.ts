@@ -18,8 +18,32 @@ function numberEnv(name: string, fallback: number): number {
 function getSubscriptionSettings() {
   return {
     targetNodeCount: numberEnv("SUBSCRIPTION_TARGET_NODE_COUNT", 20),
-    minNodeCount: numberEnv("SUBSCRIPTION_MIN_NODE_COUNT", 10)
+    minNodeCount: numberEnv("SUBSCRIPTION_MIN_NODE_COUNT", 10),
+    validityDays: numberEnv("SUBSCRIPTION_VALIDITY_DAYS", 15)
   };
+}
+
+function addDays(date: Date, days: number): string {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function ensureExpiration(file: SubscriptionFile, now: Date, validityDays: number): SubscriptionFile {
+  if (file.expiresAt) {
+    return {
+      ...file,
+      validityDays: file.validityDays || validityDays
+    };
+  }
+
+  return {
+    ...file,
+    expiresAt: addDays(now, validityDays),
+    validityDays
+  };
+}
+
+function isSubscriptionExpired(file: SubscriptionFile): boolean {
+  return Boolean(file.expiresAt && Date.now() >= new Date(file.expiresAt).getTime());
 }
 
 function getPublicSubscriptionBaseUrl(): string | null {
@@ -36,7 +60,7 @@ function withPublicSubscriptionConfig(status: SubscriptionStatus): SubscriptionS
     ...status,
     publicBaseUrlConfigured: Boolean(publicSubscriptionBaseUrl),
     publicSubscriptionBaseUrl,
-    copyableSubscriptionUrlReady: Boolean(publicSubscriptionBaseUrl && status.safeSubscriptionUrl)
+    copyableSubscriptionUrlReady: Boolean(publicSubscriptionBaseUrl && status.safeSubscriptionUrl && !status.expired)
   };
 }
 
@@ -92,7 +116,8 @@ export async function rebuildSubscriptionCache(
   const previous = await readSubscriptionFile();
   const settings = getSubscriptionSettings();
   const nodes = await listSubscriptionCandidateNodes(settings.targetNodeCount);
-  const ranAt = new Date().toISOString();
+  const now = new Date();
+  const ranAt = now.toISOString();
 
   if (source === "auto" && nodes.length === 0) {
     const warning = "当前可用节点为 0，自动刷新已保留上一次订阅缓存。";
@@ -119,17 +144,21 @@ export async function rebuildSubscriptionCache(
   const token = previous.token || createSubscriptionToken();
   const contentBase64 = Buffer.from(nodes.map((node) => node.raw).join("\n"), "utf8").toString("base64");
   const warning = buildWarning(nodes.length, settings.targetNodeCount, settings.minNodeCount);
-  const nextFile: SubscriptionFile = {
-    ...previous,
-    version: 1,
-    token,
-    contentBase64,
-    nodeCount: nodes.length,
-    targetNodeCount: settings.targetNodeCount,
-    minNodeCount: settings.minNodeCount,
-    lastGeneratedAt: ranAt,
-    warning
-  };
+  const nextFile = ensureExpiration(
+    {
+      ...previous,
+      version: 1,
+      token,
+      contentBase64,
+      nodeCount: nodes.length,
+      targetNodeCount: settings.targetNodeCount,
+      minNodeCount: settings.minNodeCount,
+      lastGeneratedAt: ranAt,
+      warning
+    },
+    now,
+    settings.validityDays
+  );
 
   const file =
     source === "auto"
@@ -172,39 +201,66 @@ export async function rebuildSubscriptionHandler() {
 export async function resetSubscriptionTokenHandler() {
   const previous = await readSubscriptionFile();
   const settings = getSubscriptionSettings();
-  const now = new Date().toISOString();
+  const now = new Date();
+  const nowIso = now.toISOString();
   const newToken = createSubscriptionToken();
   const hasExistingCache = Boolean(previous.token && previous.lastGeneratedAt);
   let nextFile: SubscriptionFile;
 
   if (hasExistingCache) {
-    nextFile = {
-      ...previous,
-      token: newToken,
-      targetNodeCount: settings.targetNodeCount,
-      minNodeCount: settings.minNodeCount,
-      lastGeneratedAt: now
-    };
+    nextFile = ensureExpiration(
+      {
+        ...previous,
+        token: newToken,
+        targetNodeCount: settings.targetNodeCount,
+        minNodeCount: settings.minNodeCount,
+        lastGeneratedAt: nowIso
+      },
+      now,
+      settings.validityDays
+    );
   } else {
     const nodes = await listSubscriptionCandidateNodes(settings.targetNodeCount);
     const warning = buildWarning(nodes.length, settings.targetNodeCount, settings.minNodeCount);
-    nextFile = {
-      ...previous,
-      version: 1,
-      token: newToken,
-      contentBase64: Buffer.from(nodes.map((node) => node.raw).join("\n"), "utf8").toString("base64"),
-      nodeCount: nodes.length,
-      targetNodeCount: settings.targetNodeCount,
-      minNodeCount: settings.minNodeCount,
-      lastGeneratedAt: now,
-      warning
-    };
+    nextFile = ensureExpiration(
+      {
+        ...previous,
+        version: 1,
+        token: newToken,
+        contentBase64: Buffer.from(nodes.map((node) => node.raw).join("\n"), "utf8").toString("base64"),
+        nodeCount: nodes.length,
+        targetNodeCount: settings.targetNodeCount,
+        minNodeCount: settings.minNodeCount,
+        lastGeneratedAt: nowIso,
+        warning
+      },
+      now,
+      settings.validityDays
+    );
   }
 
   await writeSubscriptionFile(nextFile);
   return {
     ...withPublicSubscriptionConfig(toSubscriptionStatus(nextFile, true, getSubscriptionAutoRefreshRuntime())),
     message: "安全订阅链接已重置"
+  };
+}
+
+export async function renewSubscriptionExpirationHandler() {
+  const previous = await readSubscriptionFile();
+  const settings = getSubscriptionSettings();
+  const now = new Date();
+  const nextFile: SubscriptionFile = {
+    ...previous,
+    expiresAt: addDays(now, settings.validityDays),
+    validityDays: settings.validityDays,
+    expirationUpdatedAt: now.toISOString()
+  };
+
+  await writeSubscriptionFile(nextFile);
+  return {
+    ...withPublicSubscriptionConfig(toSubscriptionStatus(nextFile, false, getSubscriptionAutoRefreshRuntime())),
+    message: "订阅有效期已续期"
   };
 }
 
@@ -217,6 +273,14 @@ export async function publicSubscriptionHandler(request: FastifyRequest, reply: 
     return {
       ok: false,
       error: "SUBSCRIPTION_NOT_FOUND"
+    };
+  }
+
+  if (isSubscriptionExpired(file)) {
+    reply.code(410);
+    return {
+      ok: false,
+      error: "SUBSCRIPTION_EXPIRED"
     };
   }
 
