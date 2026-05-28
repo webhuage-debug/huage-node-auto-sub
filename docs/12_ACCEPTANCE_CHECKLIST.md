@@ -228,3 +228,14 @@ v0.5.0 验收项：
 - 口令正确后公开页可复制订阅链接，复制内容使用公开订阅域名。
 - 后台订阅页原有生成、复制、重置、续期和二维码展示功能不破坏。
 - 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。
+
+## v0.8.1 验收项
+
+- `/api/status` 返回 `version=v0.8.1`。
+- `/claim` 页面不调用 `/api/subscription/status`。
+- `POST /api/claim/verify` 口令错误时不返回 `copyableSubscriptionUrl`。
+- `POST /api/claim/verify` 口令正确且订阅可领取时返回 `copyableSubscriptionUrl`。
+- `copyableSubscriptionUrl` 使用公开订阅域名和安全订阅路径拼接。
+- `/claim` 页面不显示完整链接、`/sub/{token}`、token、后台信息或 raw/base64 内容。
+- 点击复制按钮复制 `copyableSubscriptionUrl`。
+- 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。

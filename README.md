@@ -4,7 +4,7 @@
 
 ## 当前版本
 
-当前版本为 `v0.8.0`，已经完成项目骨架、GitHub 线索搜索、节点解析、本地 JSON 节点池基础、Xray-core 检测、节点状态手动校正、安全订阅链接基础版、订阅缓存自动刷新基础版、订阅页隐藏 token 展示、公开订阅域名配置、安全订阅 token 重置、订阅有效期基础版、订阅二维码展示基础版，以及公开领取页和口令验证基础版。
+当前版本为 `v0.8.1`，已经完成项目骨架、GitHub 线索搜索、节点解析、本地 JSON 节点池基础、Xray-core 检测、节点状态手动校正、安全订阅链接基础版、订阅缓存自动刷新基础版、订阅页隐藏 token 展示、公开订阅域名配置、安全订阅 token 重置、订阅有效期基础版、订阅二维码展示基础版、公开领取页和口令验证基础版，以及领取验证成功后返回可复制订阅链接。
 
 `v0.2.0` 在骨架基础上增加 GitHub 公开线索采集链路：
 
@@ -168,7 +168,14 @@ SUBSCRIPTION_PUBLIC_BASE_URL=https://get.huage.us
 - 公开页不显示后台菜单、后台信息、完整订阅链接、`/sub/{token}` 或 token
 - 复制内容仍使用 `SUBSCRIPTION_PUBLIC_BASE_URL + safeSubscriptionUrl`
 
-公开入口后续需要允许 `/claim` 和 `/sub/*`，继续阻止 `/api/*`、后台页面和根路径策略外的入口。若公开页需要在公开域名下完成口令验证，需要为 `POST /api/claim/verify` 设计受控转发策略。
+`v0.8.1` 实现：
+
+- `POST /api/claim/verify` 在口令正确时返回 `copyableSubscriptionUrl`
+- `/claim` 页面不再调用 `/api/subscription/status`
+- `copyableSubscriptionUrl` 只用于复制到剪贴板，不在页面展示
+- 口令错误、订阅未生成、订阅过期或公开域名未配置时不返回订阅链接
+
+公开入口后续需要允许 `/claim`、`/assets/*`、`/api/claim/verify` 和 `/sub/*`，继续阻止 `/api/subscription/status`、`/api/status`、其他 `/api/*`、后台页面和根路径策略外的入口。
 
 ## 本地开发命令
 
@@ -208,7 +215,7 @@ Docker Compose 预留给后续 VPS 部署使用，服务名、容器名和镜像
 - `v0.7.0`：订阅有效期基础版
 - `v0.7.1`：订阅二维码展示基础版
 - `v0.8.0`：公开领取页和口令验证基础版
-- `v0.8.1`：领取页公开入口策略完善
+- `v0.8.1`：领取验证成功后返回可复制订阅链接
 - `v0.9.0`：Telegram Bot 只读订阅接口
 
 ## 安全说明

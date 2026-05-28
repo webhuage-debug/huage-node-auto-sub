@@ -12,6 +12,12 @@ function getPublicSubscriptionBaseUrl(): string | null {
   return value ? value.replace(/\/+$/g, "") : null;
 }
 
+function joinPublicSubscriptionUrl(baseUrl: string, subscriptionPath: string): string {
+  const base = baseUrl.replace(/\/+$/g, "");
+  const path = subscriptionPath.startsWith("/") ? subscriptionPath : `/${subscriptionPath}`;
+  return `${base}${path}`;
+}
+
 function isSubscriptionExpired(expiresAt?: string | null): boolean {
   return Boolean(expiresAt && Date.now() >= new Date(expiresAt).getTime());
 }
@@ -46,7 +52,7 @@ export async function verifyClaimCodeHandler(request: FastifyRequest): Promise<C
     return {
       ok: false,
       error: "SUBSCRIPTION_NOT_READY",
-      message: "当前订阅暂未生成，请稍后再试。",
+      message: "当前订阅暂未生成，请稍后再试",
       claimAllowed: true,
       subscriptionReady: false
     };
@@ -56,17 +62,18 @@ export async function verifyClaimCodeHandler(request: FastifyRequest): Promise<C
     return {
       ok: false,
       error: "SUBSCRIPTION_EXPIRED",
-      message: "当前订阅已过期，请关注新一期视频获取新的领取口令。",
+      message: "当前订阅已过期，请关注新一期视频获取新的领取口令",
       claimAllowed: true,
       subscriptionReady: false
     };
   }
 
-  if (!getPublicSubscriptionBaseUrl()) {
+  const publicSubscriptionBaseUrl = getPublicSubscriptionBaseUrl();
+  if (!publicSubscriptionBaseUrl) {
     return {
       ok: false,
       error: "PUBLIC_BASE_URL_NOT_CONFIGURED",
-      message: "公开订阅域名未配置，请联系管理员。",
+      message: "公开订阅域名未配置，请联系管理员",
       claimAllowed: true,
       subscriptionReady: false
     };
@@ -76,6 +83,7 @@ export async function verifyClaimCodeHandler(request: FastifyRequest): Promise<C
     ok: true,
     message: "口令验证成功",
     claimAllowed: true,
-    subscriptionReady: true
+    subscriptionReady: true,
+    copyableSubscriptionUrl: joinPublicSubscriptionUrl(publicSubscriptionBaseUrl, `/sub/${file.token}`)
   };
 }

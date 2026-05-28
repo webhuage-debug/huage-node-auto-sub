@@ -135,3 +135,12 @@ v0.5.0 订阅管理页面：
 - 复制失败提示“自动复制失败，请手动检查浏览器权限或使用 HTTPS 访问。”。
 - 底部提示“本订阅为免费分享，节点可用性会随时间变化，请以实际连接为准。”。
 - 公开页不显示完整链接、`/sub/{token}`、token、后台接口、节点数量、节点来源、检测结果、日志、服务器信息或 raw/base64 内容。
+
+## v0.8.1 领取页复制规则
+
+- `/claim` 页面验证口令时只调用 `POST /api/claim/verify`。
+- `/claim` 页面不调用 `/api/subscription/status`。
+- 口令验证成功后，将后端返回的 `copyableSubscriptionUrl` 存在前端状态里。
+- 点击“复制订阅链接”时复制 `copyableSubscriptionUrl`。
+- 页面不显示 `copyableSubscriptionUrl`、完整订阅链接、`/sub/{token}` 或 token。
+- 口令错误、订阅未生成、订阅过期、公开域名未配置等错误直接展示后端 `message`。

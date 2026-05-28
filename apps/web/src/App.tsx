@@ -192,10 +192,11 @@ type ClaimVerifyResponse = {
   message: string;
   claimAllowed: boolean;
   subscriptionReady: boolean;
+  copyableSubscriptionUrl?: string;
   error?: string;
 };
 
-const appVersion = "v0.8.0";
+const appVersion = "v0.8.1";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -1333,21 +1334,24 @@ function ClaimPage() {
   const [copying, setCopying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"success" | "error">("success");
+  const [claimSubscriptionUrl, setClaimSubscriptionUrl] = useState<string | null>(null);
 
   async function handleVerifyClaim() {
     setVerifying(true);
     setVerified(false);
+    setClaimSubscriptionUrl(null);
     setMessage(null);
 
     try {
       const result = await verifyClaimCode(code);
-      if (!result.ok || !result.claimAllowed || !result.subscriptionReady) {
+      if (!result.ok || !result.claimAllowed || !result.subscriptionReady || !result.copyableSubscriptionUrl) {
         setMessageTone("error");
         setMessage(result.message || "口令验证失败，请稍后再试。");
         return;
       }
 
       setVerified(true);
+      setClaimSubscriptionUrl(result.copyableSubscriptionUrl);
       setMessageTone("success");
       setMessage("口令验证成功，请复制订阅链接。");
     } catch {
@@ -1359,20 +1363,17 @@ function ClaimPage() {
   }
 
   async function handleCopyClaimSubscription() {
+    if (!claimSubscriptionUrl) {
+      setMessageTone("error");
+      setMessage("请先验证领取口令。");
+      return;
+    }
+
     setCopying(true);
     setMessage(null);
 
     try {
-      const subscriptionStatus = await fetchSubscriptionStatus();
-      const publicSubscriptionUrl = getPublicSubscriptionUrl(subscriptionStatus);
-
-      if (!publicSubscriptionUrl) {
-        setMessageTone("error");
-        setMessage(getQrUnavailableReason(subscriptionStatus) || "当前订阅暂不可领取，请稍后再试。");
-        return;
-      }
-
-      const copied = await copyTextToClipboard(publicSubscriptionUrl);
+      const copied = await copyTextToClipboard(claimSubscriptionUrl);
       setMessageTone(copied ? "success" : "error");
       setMessage(copied ? "已复制订阅链接" : "自动复制失败，请手动检查浏览器权限或使用 HTTPS 访问。");
     } catch {
@@ -1412,7 +1413,7 @@ function ClaimPage() {
             {verifying ? "正在验证..." : "验证并领取"}
           </button>
           {verified ? (
-            <button disabled={copying} onClick={handleCopyClaimSubscription}>
+            <button disabled={copying || !claimSubscriptionUrl} onClick={handleCopyClaimSubscription}>
               {copying ? "正在复制..." : "复制订阅链接"}
             </button>
           ) : null}
