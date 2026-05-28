@@ -11,7 +11,8 @@
     "subscriptionAutoRefreshEnabled": true,
     "subscriptionRefreshIntervalMinutes": 5,
     "subscriptionPublicBaseUrl": "",
-    "subscriptionValidityDays": 15
+    "subscriptionValidityDays": 15,
+    "claimAccessCode": ""
   },
   "detection": {
     "preferred_core": "xray",

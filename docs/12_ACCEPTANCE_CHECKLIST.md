@@ -214,3 +214,17 @@ v0.5.0 验收项：
 - 页面不显示完整订阅链接文本、`/sub/{token}`、token 或 raw/base64 两个链接。
 - 下载二维码按钮可下载 `huage-secure-subscription-qr.png`。
 - 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。
+
+## v0.8.0 验收项
+
+- `/api/status` 返回 `version=v0.8.0`。
+- `/claim` 页面可以打开。
+- `/claim` 页面不显示后台侧边栏、后台菜单、后台标题或节点池基础版徽章。
+- `/claim` 页面不显示 token、完整订阅链接、`/sub/{token}` 或 raw/base64 链接。
+- `POST /api/claim/verify` 口令错误时返回 `ok=false` 和错误提示。
+- `POST /api/claim/verify` 口令正确且订阅可领取时返回 `ok=true`、`claimAllowed=true`、`subscriptionReady=true`。
+- 口令未配置时返回 `CLAIM_CODE_NOT_CONFIGURED`。
+- 订阅未生成、订阅过期或公开订阅域名未配置时返回明确提示。
+- 口令正确后公开页可复制订阅链接，复制内容使用公开订阅域名。
+- 后台订阅页原有生成、复制、重置、续期和二维码展示功能不破坏。
+- 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。

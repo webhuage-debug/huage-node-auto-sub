@@ -30,6 +30,7 @@ import {
   resetSubscriptionTokenHandler
 } from "./subscription/subscriptionService.js";
 import { startSubscriptionAutoRefresh } from "./subscription/subscriptionAutoRefresh.js";
+import { verifyClaimCodeHandler } from "./claim/claimService.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -161,6 +162,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/subscription/reset-token", async () => resetSubscriptionTokenHandler());
 
   app.post("/api/subscription/renew-expiration", async () => renewSubscriptionExpirationHandler());
+
+  app.post("/api/claim/verify", async (request) => verifyClaimCodeHandler(request));
 
   app.get("/sub/:token", async (request, reply) => publicSubscriptionHandler(request, reply));
 

@@ -187,7 +187,15 @@ type SubscriptionStatus = {
   subscriptionAccessible: boolean;
 };
 
-const appVersion = "v0.7.1";
+type ClaimVerifyResponse = {
+  ok: boolean;
+  message: string;
+  claimAllowed: boolean;
+  subscriptionReady: boolean;
+  error?: string;
+};
+
+const appVersion = "v0.8.0";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -521,6 +529,18 @@ async function renewSubscriptionExpiration(): Promise<SubscriptionStatus> {
     throw new Error(payload.message || payload.error || "订阅续期失败，请检查服务状态");
   }
 
+  return payload;
+}
+
+async function verifyClaimCode(code: string): Promise<ClaimVerifyResponse> {
+  const response = await fetch("/api/claim/verify", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ code })
+  });
+  const payload = (await response.json()) as ClaimVerifyResponse;
   return payload;
 }
 
@@ -1306,7 +1326,106 @@ function SettingsPage() {
   );
 }
 
-function App() {
+function ClaimPage() {
+  const [code, setCode] = useState("");
+  const [verified, setVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<"success" | "error">("success");
+
+  async function handleVerifyClaim() {
+    setVerifying(true);
+    setVerified(false);
+    setMessage(null);
+
+    try {
+      const result = await verifyClaimCode(code);
+      if (!result.ok || !result.claimAllowed || !result.subscriptionReady) {
+        setMessageTone("error");
+        setMessage(result.message || "口令验证失败，请稍后再试。");
+        return;
+      }
+
+      setVerified(true);
+      setMessageTone("success");
+      setMessage("口令验证成功，请复制订阅链接。");
+    } catch {
+      setMessageTone("error");
+      setMessage("口令验证失败，请稍后再试。");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  async function handleCopyClaimSubscription() {
+    setCopying(true);
+    setMessage(null);
+
+    try {
+      const subscriptionStatus = await fetchSubscriptionStatus();
+      const publicSubscriptionUrl = getPublicSubscriptionUrl(subscriptionStatus);
+
+      if (!publicSubscriptionUrl) {
+        setMessageTone("error");
+        setMessage(getQrUnavailableReason(subscriptionStatus) || "当前订阅暂不可领取，请稍后再试。");
+        return;
+      }
+
+      const copied = await copyTextToClipboard(publicSubscriptionUrl);
+      setMessageTone(copied ? "success" : "error");
+      setMessage(copied ? "已复制订阅链接" : "自动复制失败，请手动检查浏览器权限或使用 HTTPS 访问。");
+    } catch {
+      setMessageTone("error");
+      setMessage("复制订阅链接失败，请稍后再试。");
+    } finally {
+      setCopying(false);
+    }
+  }
+
+  return (
+    <div className="claim-page">
+      <main className="claim-card">
+        <div className="claim-brand">华哥自动节点订阅池</div>
+        <h1>华哥免费节点订阅领取</h1>
+        <p className="claim-description">请输入视频中公布的领取口令，验证后复制订阅链接。</p>
+
+        <label className="claim-form-label" htmlFor="claim-code">
+          领取口令
+        </label>
+        <input
+          autoComplete="off"
+          id="claim-code"
+          onChange={(event) => setCode(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && code.trim() && !verifying) {
+              void handleVerifyClaim();
+            }
+          }}
+          placeholder="请输入领取口令"
+          type="text"
+          value={code}
+        />
+
+        <div className="claim-actions">
+          <button disabled={!code.trim() || verifying} onClick={handleVerifyClaim}>
+            {verifying ? "正在验证..." : "验证并领取"}
+          </button>
+          {verified ? (
+            <button disabled={copying} onClick={handleCopyClaimSubscription}>
+              {copying ? "正在复制..." : "复制订阅链接"}
+            </button>
+          ) : null}
+        </div>
+
+        {message ? <div className={messageTone === "success" ? "claim-message success" : "claim-message"}>{message}</div> : null}
+        <p className="claim-footer">本订阅为免费分享，节点可用性会随时间变化，请以实际连接为准。</p>
+      </main>
+    </div>
+  );
+}
+
+function AdminApp() {
   const [activeKey, setActiveKey] = useState<MenuKey>("overview");
 
   const activeMenu = useMemo(
@@ -1360,6 +1479,14 @@ function App() {
       </main>
     </div>
   );
+}
+
+function App() {
+  if (window.location.pathname === "/claim") {
+    return <ClaimPage />;
+  }
+
+  return <AdminApp />;
 }
 
 export default App;
