@@ -230,7 +230,7 @@ type PublishPrepareResponse = {
   error?: string;
 };
 
-const appVersion = "v0.9.0";
+const appVersion = "v1.0.0";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },

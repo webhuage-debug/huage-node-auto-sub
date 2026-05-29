@@ -76,3 +76,13 @@ curl -k -I https://get.huage.us/api/detection/xray/status
 ## 后续待补充内容
 
 后续如增加数据库或多活动，需要补充数据备份和活动回滚策略。
+# v1.0.0 稳定版回滚补充
+
+升级或发布前如已执行 `scripts/backup-runtime-data.sh`，回滚时可从 `backups/` 中取回运行数据备份。备份包可能包含 `.env.backup`，不要把该文件内容贴到聊天、截图或公开仓库。
+
+回滚后必须重新检查：
+
+- 本地 `/api/status`。
+- 本地 `/api/subscription/status`。
+- 公开 `/claim`。
+- 公开后台 API 是否仍为 404。

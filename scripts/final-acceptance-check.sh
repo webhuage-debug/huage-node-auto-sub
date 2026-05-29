@@ -46,10 +46,10 @@ printf 'Public base: %s\n' "$PUBLIC_BASE_URL"
 printf 'This script is read-only and does not print subscription tokens.\n\n'
 
 status_body="$(body_get "$LOCAL_BASE_URL/api/status")"
-if printf '%s' "$status_body" | grep -q '"version"[[:space:]]*:[[:space:]]*"v0.9.0"'; then
-  pass 'local /api/status returns v0.9.0'
+if printf '%s' "$status_body" | grep -q '"version"[[:space:]]*:[[:space:]]*"v1.0.0"'; then
+  pass 'local /api/status returns v1.0.0'
 else
-  fail 'local /api/status did not return v0.9.0'
+  fail 'local /api/status did not return v1.0.0'
 fi
 
 subscription_body="$(body_get "$LOCAL_BASE_URL/api/subscription/status")"

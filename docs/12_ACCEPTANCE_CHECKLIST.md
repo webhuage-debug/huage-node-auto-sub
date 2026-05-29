@@ -302,3 +302,16 @@ v0.5.0 验收项：
 - 不修改核心业务逻辑。
 - 不修改 Caddy、Dockerfile 或 docker-compose.yml。
 - 不提交 `data/` 或 `cores/`。
+# v1.0.0 稳定版验收项
+
+- `/api/status` 返回 `version=v1.0.0`。
+- README 标记当前稳定版为 `v1.0.0`。
+- `docs/16_V1_STABLE_RELEASE_NOTES.md` 存在，并包含稳定版能力清单、主流程、安全边界、发布前操作、已知边界和后续方向。
+- `scripts/backup-runtime-data.sh` 存在，并只备份运行数据到本机 `backups/` 目录。
+- `scripts/backup-runtime-data.sh` 不输出 `.env` 明文。
+- `scripts/backup-runtime-data.sh` 不备份 `cores/`、`node_modules/`、`dist/`、`.git/`。
+- `scripts/final-acceptance-check.sh` 保持不输出 token 全文。
+- 正式发布前必须执行发布前准备、下载二维码、确认口令、确认公开 API 隔离。
+- 不修改订阅、领取、防刷、检测、节点池核心逻辑。
+- 不修改 Caddy、Dockerfile 或 docker-compose.yml。
+- 不提交 `.env`、`data/` 或 `cores/`。

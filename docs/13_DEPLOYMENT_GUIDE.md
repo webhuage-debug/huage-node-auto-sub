@@ -100,3 +100,18 @@ docker compose logs --tail=120 huage-node-auto-sub
 ## 后续待补充内容
 
 后续如引入多活动、多口令、统计或 Telegram Bot，再补充对应部署和验收步骤。
+# v1.0.0 稳定版部署补充
+
+部署 `v1.0.0` 前，建议先执行：
+
+```bash
+bash scripts/backup-runtime-data.sh
+```
+
+部署完成后，必须执行：
+
+```bash
+bash scripts/final-acceptance-check.sh
+```
+
+正式发视频前必须执行发布前准备、下载二维码、确认本期口令、确认公开域名只开放 `/claim`、`/assets/*`、`/api/claim/verify` 和 `/sub/*`。
