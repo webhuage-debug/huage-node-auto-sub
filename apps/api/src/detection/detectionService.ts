@@ -2,7 +2,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { getNodeById, getNodePoolStatus, getPublicNodeById, listNodesByStatus, updateNodeDetectionResult, updateNodeStatus } from "../nodePool/nodeStore.js";
 import type { NodePoolItem, NodeStatus, PublicNodePoolItem } from "../nodePool/nodeTypes.js";
 import { getDetectionState, markDetectionError, markDetectionFinished, markDetectionStarted, pushDetectionHistory, setTestingCount } from "./detectionState.js";
-import type { DetectionHistoryItem, DetectionResult, DetectionSettings } from "./detectionTypes.js";
+import type { DetectionDebug, DetectionHistoryItem, DetectionResult, DetectionSettings } from "./detectionTypes.js";
 import { getXrayCoreStatus, testNodeWithXray } from "./xrayDetector.js";
 
 type TestOneBody = {
@@ -36,6 +36,35 @@ function getDetectionSettings(): DetectionSettings {
   };
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return "未知错误";
+}
+
+function createRuntimeDebug(node: NodePoolItem, settings: DetectionSettings, reason: string): DetectionDebug {
+  return {
+    protocol: node.protocol,
+    network: "unknown",
+    security: "unknown",
+    flow: "",
+    proxyType: "socks",
+    testUrl: settings.testUrl,
+    detectionCore: "xray",
+    configBuildOk: false,
+    xrayStarted: false,
+    socksPort: undefined,
+    curlExitCode: null,
+    httpCode: null,
+    failureStage: "unknown",
+    safeFailureReason: reason
+  };
+}
+
 function summarizeResults(results: DetectionResult[]): Omit<DetectionHistoryItem, "runAt" | "core"> {
   return {
     tested: results.length,
@@ -62,7 +91,21 @@ async function persistDetectionResult(result: DetectionResult): Promise<void> {
 
 async function runOneNodeDetection(node: NodePoolItem, settings: DetectionSettings): Promise<DetectionResult> {
   await updateNodeStatus(node.id, "testing");
-  const result = await testNodeWithXray(node, settings);
+  let result: DetectionResult;
+
+  try {
+    result = await testNodeWithXray(node, settings);
+  } catch (error) {
+    const reason = `单节点检测异常：${getErrorMessage(error)}`;
+    result = {
+      nodeId: node.id,
+      status: "unavailable",
+      responseMs: null,
+      failureReason: reason,
+      debug: createRuntimeDebug(node, settings, reason)
+    };
+  }
+
   await persistDetectionResult(result);
   return result;
 }
@@ -168,6 +211,21 @@ export async function testOneNodeHandler(request: FastifyRequest, reply: Fastify
   try {
     setTestingCount(1);
     result = await runOneNodeDetection(node, settings);
+    if (result.status !== "available") {
+      const reason = result.failureReason || result.debug?.safeFailureReason || "单节点检测未通过";
+      result = {
+        ...result,
+        status: "unavailable",
+        responseMs: null,
+        failureReason: reason,
+        debug: {
+          ...(result.debug || createRuntimeDebug(node, settings, reason)),
+          safeFailureReason: reason,
+          failureStage: result.debug?.failureStage || "unknown"
+        }
+      };
+      await persistDetectionResult(result);
+    }
     persistedNode = await getPublicNodeById(node.id);
     setTestingCount(0);
     const summary = summarizeResults([result]);
