@@ -1,6 +1,15 @@
 import { appConfig } from "../config.js";
 import { readSubscriptionFile, toSubscriptionStatus } from "../subscription/subscriptionStore.js";
-import type { PublishCheckItem, PublishCheckResponse, PublishCheckStatus } from "./publishCheckTypes.js";
+import {
+  renewSubscriptionExpirationHandler,
+  resetSubscriptionTokenHandler
+} from "../subscription/subscriptionService.js";
+import type {
+  PublishCheckItem,
+  PublishCheckResponse,
+  PublishCheckStatus,
+  PublishPrepareResponse
+} from "./publishCheckTypes.js";
 
 const REQUEST_TIMEOUT_MS = 5000;
 
@@ -257,7 +266,7 @@ export async function getPublishCheckStatusHandler(): Promise<PublishCheckRespon
     {
       key: "systemVersion",
       label: "系统版本",
-      status: appConfig.version === "v0.8.4" ? "pass" : "warning",
+      status: appConfig.version === "v0.8.5" ? "pass" : "warning",
       message: `当前版本：${appConfig.version}`
     },
     {
@@ -314,7 +323,33 @@ export async function getPublishCheckStatusHandler(): Promise<PublishCheckRespon
     reminders: [
       "正式发布前建议最后重置一次安全订阅 token",
       "确认 CLAIM_ACCESS_CODE 已改成本期视频口令",
-      "公开领取页只应该暴露 /claim、/assets/*、/api/claim/verify 和 /sub/*"
+      "执行发布前准备后，需要重新下载二维码",
+      "公开域名仍不能开放全部 /api/*"
     ]
   };
+}
+
+export async function preparePublishHandler(): Promise<PublishPrepareResponse> {
+  try {
+    await resetSubscriptionTokenHandler();
+    await renewSubscriptionExpirationHandler();
+
+    const status = toSubscriptionStatus(await readSubscriptionFile());
+    return {
+      ok: true,
+      message: "发布前准备已完成",
+      tokenReset: true,
+      expirationRenewed: true,
+      expiresAt: status.expiresAt,
+      remainingDays: status.remainingDays,
+      subscriptionAccessible: status.subscriptionAccessible,
+      publicBaseUrlConfigured: Boolean(getPublicSubscriptionBaseUrl())
+    };
+  } catch {
+    return {
+      ok: false,
+      error: "PUBLISH_PREPARE_FAILED",
+      message: "发布前准备失败，请检查服务状态"
+    };
+  }
 }

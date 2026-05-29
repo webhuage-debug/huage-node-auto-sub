@@ -266,6 +266,19 @@ v0.5.0 验收项：
 - 页面不显示 token、完整订阅链接、真实口令、raw/base64 链接或 raw 节点。
 - 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。
 
+## v0.8.5 验收项
+
+- `/api/status` 返回 `version=v0.8.5`。
+- `POST /api/publish-check/prepare` 可调用。
+- prepare 会重置安全订阅 token。
+- prepare 会续期订阅有效期。
+- prepare 不返回 token、完整订阅链接、真实口令、raw/base64 内容或 raw 节点。
+- 系统设置页发布前检查区域有“执行发布前准备”按钮。
+- 点击按钮前有确认弹窗。
+- 成功后自动刷新发布前检查结果。
+- 页面不显示 token、完整订阅链接、真实口令、raw/base64 链接或 raw 节点。
+- 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。
+
 ## v0.8.4 验收项
 
 - `/api/status` 返回 `version=v0.8.4`。

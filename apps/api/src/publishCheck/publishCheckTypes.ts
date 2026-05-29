@@ -17,3 +17,20 @@ export type PublishCheckResponse = {
   checks: PublishCheckItem[];
   reminders: string[];
 };
+
+export type PublishPrepareResponse =
+  | {
+      ok: true;
+      message: string;
+      tokenReset: true;
+      expirationRenewed: true;
+      expiresAt: string | null;
+      remainingDays: number;
+      subscriptionAccessible: boolean;
+      publicBaseUrlConfigured: boolean;
+    }
+  | {
+      ok: false;
+      error: "PUBLISH_PREPARE_FAILED";
+      message: string;
+    };

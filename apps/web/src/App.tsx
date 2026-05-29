@@ -218,7 +218,19 @@ type PublishCheckResponse = {
   reminders: string[];
 };
 
-const appVersion = "v0.8.4";
+type PublishPrepareResponse = {
+  ok: boolean;
+  message: string;
+  tokenReset?: boolean;
+  expirationRenewed?: boolean;
+  expiresAt?: string | null;
+  remainingDays?: number;
+  subscriptionAccessible?: boolean;
+  publicBaseUrlConfigured?: boolean;
+  error?: string;
+};
+
+const appVersion = "v0.8.5";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -602,6 +614,19 @@ async function fetchPublishCheckStatus(): Promise<PublishCheckResponse> {
     throw new Error("发布前检查读取失败");
   }
   return response.json();
+}
+
+async function preparePublish(): Promise<PublishPrepareResponse> {
+  const response = await fetch("/api/publish-check/prepare", {
+    method: "POST"
+  });
+  const payload = (await response.json()) as PublishPrepareResponse;
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.message || payload.error || "发布前准备失败，请检查服务状态");
+  }
+
+  return payload;
 }
 
 async function fetchDetectionHistory(): Promise<DetectionHistoryResponse> {
@@ -1368,6 +1393,8 @@ function SettingsPage() {
   const [publishCheck, setPublishCheck] = useState<PublishCheckResponse | null>(null);
   const [loadingPublishCheck, setLoadingPublishCheck] = useState(true);
   const [publishCheckError, setPublishCheckError] = useState<string | null>(null);
+  const [preparingPublish, setPreparingPublish] = useState(false);
+  const [publishPrepareMessage, setPublishPrepareMessage] = useState<string | null>(null);
 
   const loadPublishCheck = useCallback(async () => {
     setLoadingPublishCheck(true);
@@ -1386,6 +1413,27 @@ function SettingsPage() {
   useEffect(() => {
     void loadPublishCheck();
   }, [loadPublishCheck]);
+
+  async function handlePreparePublish() {
+    const confirmed = window.confirm("执行后会重置安全订阅链接并续期，旧订阅链接将失效。确认继续吗？");
+    if (!confirmed) {
+      return;
+    }
+
+    setPreparingPublish(true);
+    setPublishPrepareMessage(null);
+    setPublishCheckError(null);
+
+    try {
+      await preparePublish();
+      setPublishPrepareMessage("发布前准备已完成，安全订阅链接已重置并续期。");
+      await loadPublishCheck();
+    } catch (error) {
+      setPublishPrepareMessage(error instanceof Error ? error.message : "发布前准备失败，请检查服务状态");
+    } finally {
+      setPreparingPublish(false);
+    }
+  }
 
   return (
     <>
@@ -1411,16 +1459,24 @@ function SettingsPage() {
       <section className="publish-check-panel">
         <div className="section-heading-row">
           <h3 className="subheading">发布前检查</h3>
-          <button disabled={loadingPublishCheck} onClick={() => void loadPublishCheck()}>
-            {loadingPublishCheck ? "正在检查..." : "刷新检查"}
-          </button>
+          <div className="action-row compact">
+            <button disabled={preparingPublish} onClick={handlePreparePublish}>
+              {preparingPublish ? "正在准备..." : "执行发布前准备"}
+            </button>
+            <button disabled={loadingPublishCheck || preparingPublish} onClick={() => void loadPublishCheck()}>
+              {loadingPublishCheck ? "正在检查..." : "刷新检查"}
+            </button>
+          </div>
         </div>
+
+        <p className="publish-prepare-note">点击后会重置安全订阅链接并续期，旧订阅链接将立即失效。执行完成后需要重新下载二维码。</p>
 
         <div className={`publish-summary ${publishCheck?.level || "warning"}`}>
           <strong>{formatPublishCheckSummary(publishCheck)}</strong>
           <span>{publishCheck?.summary || "正在检查订阅、口令、公开入口和后台 API 暴露状态。"}</span>
         </div>
 
+        {publishPrepareMessage ? <div className="inline-message">{publishPrepareMessage}</div> : null}
         {publishCheckError ? <div className="inline-message">{publishCheckError}</div> : null}
 
         <div className="table-panel publish-check-table">
@@ -1460,7 +1516,8 @@ function SettingsPage() {
             {(publishCheck?.reminders || [
               "正式发布前建议最后重置一次安全订阅 token",
               "确认视频口令已经改成本期口令",
-              "公开领取页只应该暴露 /claim、/api/claim/verify、/sub/*"
+              "执行发布前准备后，需要重新下载二维码",
+              "公开域名仍不能开放全部 /api/*"
             ]).map((item) => (
               <li key={item}>{item}</li>
             ))}

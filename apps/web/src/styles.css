@@ -190,6 +190,10 @@ nav {
   margin-bottom: 18px;
 }
 
+.action-row.compact {
+  margin-bottom: 0;
+}
+
 .collector-actions {
   margin-top: 20px;
 }
@@ -479,6 +483,12 @@ a:hover {
   gap: 6px;
   margin: 14px 0;
   padding: 16px;
+}
+
+.publish-prepare-note {
+  color: #64748b;
+  line-height: 1.7;
+  margin: 8px 0 14px;
 }
 
 .publish-summary strong {
