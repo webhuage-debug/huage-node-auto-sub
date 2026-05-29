@@ -330,6 +330,22 @@ v0.5.0 验收项：
 - 不修改 Caddy、Dockerfile 或 docker-compose.yml。
 - 不提交 `.env`、`data/` 或 `cores/`。
 
+# v1.0.3 热修复验收项
+
+- `/api/status` 返回 `version=v1.0.3`。
+- Dockerfile runner 阶段包含 `apk add --no-cache curl ca-certificates`。
+- 容器重建后 `command -v curl` 返回 `/usr/bin/curl`。
+- `POST /api/detection/xray/test-node` 可对指定节点执行单节点检测。
+- 单节点检测接口支持重新检测 `unavailable` 节点。
+- 检测完成后节点池写回 `lastTestedAt`、`detectionCore=xray`、`responseMs`、`failureReason`。
+- 检测完成后节点池写回运行时 debug，包含 `configBuildOk`、`xrayStarted`、`socksPort`、`curlExitCode`、`httpCode`、`failureStage`、`safeFailureReason`。
+- `curlExitCode=0` 且 `httpCode=204` 或 `httpCode=200` 时，节点必须判定为 `available`。
+- 失败时 `failureStage` 能明确区分 `config_build`、`xray_start`、`socks_wait`、`curl`、`result_parse`、`process_cleanup` 或 `unknown`。
+- 前端节点行的“Xray 检测 / 重新 Xray 检测”按钮调用单节点检测接口。
+- 不输出 raw 节点、完整 publicKey、订阅 token、完整订阅链接或真实口令。
+- 不修改 Caddy 或 docker-compose.yml。
+- 不提交 `.env`、`data/` 或 `cores/`。
+
 # v1.0.0 稳定版验收项
 
 - `/api/status` 返回 `version=v1.0.0`。

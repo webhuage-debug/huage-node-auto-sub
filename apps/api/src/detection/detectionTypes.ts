@@ -16,7 +16,7 @@ export type DetectionDebug = NodeDetectionDebug & {
   socksPort?: number;
   curlExitCode?: number | null;
   httpCode?: string | null;
-  failureStage?: "XRAY_START" | "SOCKS_LISTEN" | "CURL_REQUEST" | "CONFIG_BUILD" | null;
+  failureStage?: "config_build" | "xray_start" | "socks_wait" | "curl" | "result_parse" | "process_cleanup" | "unknown" | null;
   safeFailureReason?: string | null;
 };
 

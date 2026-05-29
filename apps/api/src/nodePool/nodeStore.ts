@@ -260,6 +260,8 @@ export async function updateNodeDetectionResult(
   node.responseMs = result.responseMs;
   node.failureReason = result.failureReason;
   node.detectionDebug = result.debug;
+  node.detectionRuntimeDebug = result.debug;
+  node.debug = result.debug;
   node.testCount = previousTestCount + 1;
   node.successCount = previousSuccessCount + (success ? 1 : 0);
   node.failCount = previousFailCount + (success ? 0 : 1);

@@ -176,6 +176,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/api/detection/xray/test-one", async (request, reply) => testOneNodeHandler(request, reply));
 
+  app.post("/api/detection/xray/test-node", async (request, reply) => testOneNodeHandler(request, reply));
+
+  app.post("/api/detection/xray/test-node/:nodeId", async (request, reply) => testOneNodeHandler(request, reply));
+
   app.post("/api/detection/xray/test-untested", async (request, reply) => testUntestedNodesHandler(request, reply));
 
   app.get("/api/detection/history", async () => getDetectionHistoryHandler());

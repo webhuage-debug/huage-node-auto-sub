@@ -9,6 +9,10 @@ type TestOneBody = {
   nodeId?: string;
 };
 
+type TestNodeParams = {
+  nodeId?: string;
+};
+
 type TestUntestedBody = {
   limit?: number;
 };
@@ -138,13 +142,16 @@ export async function testOneNodeHandler(request: FastifyRequest, reply: Fastify
     };
   }
 
-  const body = request.body as TestOneBody;
-  if (!body?.nodeId) {
+  const body = request.body as TestOneBody | undefined;
+  const params = request.params as TestNodeParams | undefined;
+  const nodeId = body?.nodeId || params?.nodeId || "";
+
+  if (!nodeId) {
     reply.code(400);
     return { ok: false, error: "NODE_ID_REQUIRED", message: "请提供 nodeId。" };
   }
 
-  const node = await getNodeById(body.nodeId);
+  const node = await getNodeById(nodeId);
   if (!node) {
     reply.code(404);
     return { ok: false, error: "NODE_NOT_FOUND", message: "未找到指定节点。" };

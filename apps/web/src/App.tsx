@@ -97,7 +97,16 @@ type NodePoolItem = {
     proxyType: "socks";
     testUrl: string;
     detectionCore: "xray";
+    configBuildOk?: boolean;
+    xrayStarted?: boolean;
+    socksPort?: number;
+    curlExitCode?: number | null;
+    httpCode?: string | null;
+    failureStage?: string | null;
+    safeFailureReason?: string | null;
   };
+  detectionRuntimeDebug?: NodePoolItem["detectionDebug"];
+  debug?: NodePoolItem["detectionDebug"];
   testCount?: number;
   successCount?: number;
   failCount?: number;
@@ -235,7 +244,7 @@ type PublishPrepareResponse = {
   error?: string;
 };
 
-const appVersion = "v1.0.1";
+const appVersion = "v1.0.3";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -421,11 +430,15 @@ function SectionNote({ children }: { children: string }) {
 function NodeListTable({
   nodes,
   onManualStatus,
-  manualActionNodeId
+  manualActionNodeId,
+  onTestNode,
+  testingNodeId
 }: {
   nodes: NodePoolItem[];
   onManualStatus?: (node: NodePoolItem, status: "available" | "unavailable" | "untested") => void | Promise<void>;
   manualActionNodeId?: string | null;
+  onTestNode?: (node: NodePoolItem) => void | Promise<void>;
+  testingNodeId?: string | null;
 }) {
   return (
     <div className="table-panel">
@@ -465,24 +478,33 @@ function NodeListTable({
                 <td>{node.responseMs ? `${node.responseMs} ms` : "-"}</td>
                 <td className="wrap-cell">{formatFailureReason(node.failureReason)}</td>
                 <td className="wrap-cell">
-                  {node.detectionDebug
-                    ? `${node.detectionDebug.protocol} / ${node.detectionDebug.network} / ${node.detectionDebug.security} / ${node.detectionDebug.flow || "-"} / ${node.detectionDebug.detectionCore}`
+                  {node.detectionRuntimeDebug || node.detectionDebug || node.debug
+                    ? `${(node.detectionRuntimeDebug || node.detectionDebug || node.debug)?.protocol} / ${(node.detectionRuntimeDebug || node.detectionDebug || node.debug)?.network} / ${(node.detectionRuntimeDebug || node.detectionDebug || node.debug)?.security} / ${(node.detectionRuntimeDebug || node.detectionDebug || node.debug)?.flow || "-"} / ${(node.detectionRuntimeDebug || node.detectionDebug || node.debug)?.detectionCore} / http=${(node.detectionRuntimeDebug || node.detectionDebug || node.debug)?.httpCode ?? "-"} / stage=${(node.detectionRuntimeDebug || node.detectionDebug || node.debug)?.failureStage ?? "-"}`
                     : "-"}
                 </td>
                 <td>{formatDate(node.firstSeenAt)}</td>
                 <td>{formatDate(node.lastTestedAt || null)}</td>
                 <td>
-                  {onManualStatus ? (
+                  {onManualStatus || onTestNode ? (
                     <div className="node-actions">
-                      <button disabled={manualActionNodeId === node.id} onClick={() => { void onManualStatus(node, "available"); }}>
-                        标记可用
-                      </button>
-                      <button disabled={manualActionNodeId === node.id} onClick={() => { void onManualStatus(node, "unavailable"); }}>
-                        标记不可用
-                      </button>
-                      <button disabled={manualActionNodeId === node.id} onClick={() => { void onManualStatus(node, "untested"); }}>
-                        恢复待检测
-                      </button>
+                      {onTestNode ? (
+                        <button disabled={testingNodeId === node.id} onClick={() => { void onTestNode(node); }}>
+                          {testingNodeId === node.id ? "检测中..." : node.lastTestedAt ? "重新 Xray 检测" : "Xray 检测"}
+                        </button>
+                      ) : null}
+                      {onManualStatus ? (
+                        <>
+                          <button disabled={manualActionNodeId === node.id} onClick={() => { void onManualStatus(node, "available"); }}>
+                            标记可用
+                          </button>
+                          <button disabled={manualActionNodeId === node.id} onClick={() => { void onManualStatus(node, "unavailable"); }}>
+                            标记不可用
+                          </button>
+                          <button disabled={manualActionNodeId === node.id} onClick={() => { void onManualStatus(node, "untested"); }}>
+                            恢复待检测
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   ) : (
                     "-"
@@ -654,6 +676,23 @@ async function testUntestedNodes(limit: number) {
 
   if (!response.ok || payload.ok === false) {
     throw new Error(payload.message || payload.error || "检测失败");
+  }
+
+  return payload;
+}
+
+async function testSingleNode(nodeId: string) {
+  const response = await fetch("/api/detection/xray/test-node", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ nodeId })
+  });
+  const payload = await response.json();
+
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.message || payload.error || "单节点检测失败");
   }
 
   return payload;
@@ -927,6 +966,7 @@ function DetectionPage() {
   const [nodes, setNodes] = useState<NodePoolItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [testingLimit, setTestingLimit] = useState<number | null>(null);
+  const [testingNodeId, setTestingNodeId] = useState<string | null>(null);
 
   const loadDetectionData = useCallback(async () => {
     const [nodeStatus, xrayData, historyData, nodeData] = await Promise.all([
@@ -961,8 +1001,24 @@ function DetectionPage() {
     }
   }
 
+  async function handleTestSingleNode(node: NodePoolItem) {
+    setTestingNodeId(node.id);
+    setMessage(null);
+
+    try {
+      const payload = await testSingleNode(node.id);
+      setMessage(`节点检测完成：${payload.status}${payload.responseMs ? `，响应 ${payload.responseMs} ms` : ""}${payload.failureReason ? `，${payload.failureReason}` : ""}`);
+      await loadDetectionData();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "单节点检测失败");
+      await loadDetectionData().catch(() => undefined);
+    } finally {
+      setTestingNodeId(null);
+    }
+  }
+
   const xrayAvailable = Boolean(xrayStatus?.available ?? xrayStatus?.xrayInstalled);
-  const detectionDisabled = Boolean(testingLimit || xrayStatus?.running || !xrayAvailable);
+  const detectionDisabled = Boolean(testingLimit || testingNodeId || xrayStatus?.running || !xrayAvailable);
 
   return (
     <>
@@ -1062,7 +1118,7 @@ function DetectionPage() {
         </table>
       </div>
       <h3 className="subheading">最近节点检测结果</h3>
-      <NodeListTable nodes={nodes} />
+      <NodeListTable nodes={nodes} onTestNode={handleTestSingleNode} testingNodeId={testingNodeId} />
       <SectionNote>当前版本只支持 Xray-core 基础检测，不支持 sing-box / Mihomo，不生成订阅。</SectionNote>
     </>
   );

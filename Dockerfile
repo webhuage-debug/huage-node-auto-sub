@@ -17,6 +17,8 @@ ENV NODE_ENV=production
 ENV APP_HOST=0.0.0.0
 ENV APP_PORT=3000
 
+RUN apk add --no-cache curl ca-certificates
+
 COPY package.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json

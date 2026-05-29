@@ -14,6 +14,13 @@ export type NodeDetectionDebug = {
   proxyType: "socks";
   testUrl: string;
   detectionCore: "xray";
+  configBuildOk?: boolean;
+  xrayStarted?: boolean;
+  socksPort?: number;
+  curlExitCode?: number | null;
+  httpCode?: string | null;
+  failureStage?: "config_build" | "xray_start" | "socks_wait" | "curl" | "result_parse" | "process_cleanup" | "unknown" | null;
+  safeFailureReason?: string | null;
 };
 
 export type NodePoolItem = {
@@ -37,6 +44,8 @@ export type NodePoolItem = {
   responseMs?: number | null;
   failureReason?: string | null;
   detectionDebug?: NodeDetectionDebug;
+  detectionRuntimeDebug?: NodeDetectionDebug;
+  debug?: NodeDetectionDebug;
   manualOverride?: boolean;
   manualStatus?: ManualNodeStatus | null;
   manualReason?: string | null;

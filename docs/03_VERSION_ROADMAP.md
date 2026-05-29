@@ -138,6 +138,15 @@ v0.8.5 增加 `POST /api/publish-check/prepare`，用于后台执行发布前准
 - 增加安全 debug 字段用于定位检测阶段，不返回 raw 节点、token、完整订阅链接或完整 publicKey。
 - 本版本不新增业务功能，不修改订阅、领取、口令、防刷、节点池或 Caddy/Docker 配置。
 
+# v1.0.3 热修复
+
+- v1.0.3：修复单节点 Xray 真实检测结果写回和运行时 debug 持久化。
+- 新增 `POST /api/detection/xray/test-node`，支持对 `unavailable` 等任意状态节点重新执行 Xray 检测。
+- 检测完成后写回 `lastTestedAt`、`detectionCore`、`responseMs`、`failureReason`、`detectionDebug`、`detectionRuntimeDebug` 和 `debug`。
+- Docker runner 阶段安装 `curl` 和 `ca-certificates`，确保容器内真实 curl SOCKS 检测可用。
+- 前端节点行的“Xray 检测 / 重新 Xray 检测”按钮调用单节点检测接口。
+- 本版本不新增业务功能，不修改订阅、领取、口令、防刷、Caddy 或 docker-compose 配置。
+
 # v1.0.0 稳定版更新
 
 - v1.0.0：稳定版封版（当前稳定版）

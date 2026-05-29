@@ -4,7 +4,7 @@
 
 ## 当前版本
 
-当前版本为 `v1.0.2` 热修复版，已经完成项目骨架、GitHub 线索搜索、节点解析、本地 JSON 节点池基础、Xray-core 检测、节点状态手动校正、安全订阅链接、订阅缓存自动刷新、订阅页隐藏 token 展示、公开订阅域名配置、安全订阅 token 重置、订阅有效期、订阅二维码下载、公开领取页和口令验证、领取验证成功后返回可复制订阅链接、领取口令防刷、隐藏二维码预览、发布前检查页、发布前检查结果优化、发布前一键准备操作区、Xray-core 内核状态识别热修复，以及 Xray 检测流程与手动成功流程对齐。
+当前版本为 `v1.0.3` 热修复版，已经完成项目骨架、GitHub 线索搜索、节点解析、本地 JSON 节点池基础、Xray-core 检测、节点状态手动校正、安全订阅链接、订阅缓存自动刷新、订阅页隐藏 token 展示、公开订阅域名配置、安全订阅 token 重置、订阅有效期、订阅二维码下载、公开领取页和口令验证、领取验证成功后返回可复制订阅链接、领取口令防刷、隐藏二维码预览、发布前检查页、发布前检查结果优化、发布前一键准备操作区、Xray-core 内核状态识别热修复、Xray 检测流程与手动成功流程对齐，以及单节点 Xray 检测结果写回修复。
 
 `v0.2.0` 在骨架基础上增加 GitHub 公开线索采集链路：
 
@@ -299,6 +299,23 @@ Docker Compose 预留给后续 VPS 部署使用，服务名、容器名和镜像
 - 只有 curl 未成功时才结合 Xray 安全日志摘要生成 failureReason。
 - 安全 debug 只返回 `configBuildOk`、`xrayStarted`、`socksPort`、`curlExitCode`、`httpCode`、`failureStage`、`safeFailureReason` 等字段。
 - 不输出 raw 节点、完整 publicKey、订阅 token 或完整订阅链接。
+
+# v1.0.3 热修复
+
+`v1.0.3` 修复单节点 Xray 真实检测结果写回问题。后台新增 `POST /api/detection/xray/test-node`，可对任意节点状态执行单节点重新检测，包括已经是 `unavailable` 的节点。检测完成后会立即写回本地节点池 JSON。
+
+写回字段包括：
+
+- `status`
+- `lastTestedAt`
+- `detectionCore=xray`
+- `responseMs`
+- `failureReason`
+- `detectionDebug`
+- `detectionRuntimeDebug`
+- `debug`
+
+运行时 debug 包含 `configBuildOk`、`xrayStarted`、`socksPort`、`curlExitCode`、`httpCode`、`failureStage`、`safeFailureReason`。`httpCode=204` 或 `httpCode=200` 必须判定为 `available`。Docker runner 阶段安装 `curl` 和 `ca-certificates`，用于真实 SOCKS 检测。页面节点行的“Xray 检测 / 重新 Xray 检测”按钮调用单节点检测接口，不再只能检测 `untested` 节点。
 
 # v1.0.0 稳定版
 

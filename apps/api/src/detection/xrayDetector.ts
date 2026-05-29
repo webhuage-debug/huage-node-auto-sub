@@ -424,7 +424,7 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
   const config = buildXrayConfig(node, localPort);
 
   if (!config.ok) {
-    debug.failureStage = "CONFIG_BUILD";
+    debug.failureStage = "config_build";
     debug.safeFailureReason = config.reason;
     return {
       nodeId: node.id,
@@ -460,7 +460,7 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
 
     await delay(300);
     if (childStartError) {
-      debug.failureStage = "XRAY_START";
+      debug.failureStage = "xray_start";
       debug.safeFailureReason = `Xray 启动失败：${getErrorMessage(childStartError)}`;
       return {
         nodeId: node.id,
@@ -471,7 +471,7 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
       };
     }
     if (child.exitCode !== null) {
-      debug.failureStage = "XRAY_START";
+      debug.failureStage = "xray_start";
       debug.safeFailureReason = `Xray 配置错误或启动失败：子进程提前退出，exitCode=${child.exitCode}`;
       return {
         nodeId: node.id,
@@ -486,7 +486,7 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
     try {
       await waitForSocksPort(localPort, 3000);
     } catch (error) {
-      debug.failureStage = "SOCKS_LISTEN";
+      debug.failureStage = "socks_wait";
       debug.safeFailureReason = `Xray SOCKS 端口未就绪：${getErrorMessage(error)}`;
       return {
         nodeId: node.id,
@@ -514,7 +514,7 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
     }
 
     const curlFailureReason = buildCurlFailureReason(curlResult, xrayHints);
-    debug.failureStage = "CURL_REQUEST";
+    debug.failureStage = "curl";
     debug.safeFailureReason = curlFailureReason;
     return {
       nodeId: node.id,
@@ -527,7 +527,7 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
     const reason = normalizeFailureReason(error);
     debug.safeFailureReason = reason;
     if (!debug.failureStage) {
-      debug.failureStage = "CURL_REQUEST";
+      debug.failureStage = "curl";
     }
     return {
       nodeId: node.id,
