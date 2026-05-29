@@ -155,6 +155,15 @@ v0.8.5 增加 `POST /api/publish-check/prepare`，用于后台执行发布前准
 - 前端节点行按钮调用路径版 `test-node/:nodeId`，支持重新检测 `unavailable` 节点。
 - 本版本不修改 Xray 配置生成、Reality 参数解析、订阅、领取、Caddy、Dockerfile 或 docker-compose 配置。
 
+# v1.0.5 兜底增强
+
+- v1.0.5：新增“手动验证可用并加入订阅池”兜底机制。
+- 新增 `POST /api/node-pool/mark-manual-available/:nodeId`。
+- 后台节点行新增“标记为手动验证可用”按钮。
+- 写回 `status=available`、`manualOverride=true`、`manualStatus=available`、`detectionCore=manual`、`failureReason=null`、`lastTestedAt=当前时间`。
+- 手动验证可用节点可进入订阅池，但页面必须明确显示它不是自动检测可用。
+- 本版本不修改 Xray 自动检测、订阅领取、Caddy、Dockerfile 或 docker-compose 配置。
+
 # v1.0.0 稳定版更新
 
 - v1.0.0：稳定版封版（当前稳定版）

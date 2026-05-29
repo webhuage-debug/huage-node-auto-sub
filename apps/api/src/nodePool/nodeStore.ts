@@ -325,3 +325,31 @@ export async function updateNodeManualStatus(
   await writeNodePoolFile(file);
   return toPublicNode(node);
 }
+
+export async function markNodeManualAvailable(id: string, reason = "VPS 手动验证可用"): Promise<PublicNodePoolItem | null> {
+  const file = await readNodePoolFile();
+  const node = file.nodes.find((item) => item.id === id);
+
+  if (!node) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+
+  node.status = "available";
+  node.manualOverride = true;
+  node.manualStatus = "available";
+  node.manualReason = reason;
+  node.manualUpdatedAt = now;
+  node.detectionCore = "manual";
+  node.failureReason = null;
+  node.lastTestedAt = now;
+  node.responseMs = null;
+  node.detectionDebug = undefined;
+  node.detectionRuntimeDebug = undefined;
+  node.debug = undefined;
+  file.updatedAt = now;
+
+  await writeNodePoolFile(file);
+  return toPublicNode(node);
+}

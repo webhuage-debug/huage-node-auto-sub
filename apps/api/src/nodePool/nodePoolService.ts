@@ -2,7 +2,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { getLastCollectorResults } from "../collector/githubCollector.js";
 import { readLimitedGitHubContents } from "./githubContentResolver.js";
 import { createNodeFromRaw, emptyProtocolStats, parseNodeRawsFromText } from "./nodeParser.js";
-import { clearNodePool, getNodePoolStatus, listNodes, updateNodeManualStatus, upsertNodes } from "./nodeStore.js";
+import { clearNodePool, getNodePoolStatus, listNodes, markNodeManualAvailable, updateNodeManualStatus, upsertNodes } from "./nodeStore.js";
 import type { ImportSummary, NodePoolItem, NodeProtocol, NodeSource } from "./nodeTypes.js";
 
 type ImportTextBody = {
@@ -12,6 +12,10 @@ type ImportTextBody = {
 
 type ManualStatusParams = {
   id?: string;
+};
+
+type ManualAvailableParams = {
+  nodeId?: string;
 };
 
 type ManualStatusBody = {
@@ -103,6 +107,36 @@ export async function updateNodeManualStatusHandler(request: FastifyRequest, rep
     status as "available" | "unavailable" | "untested",
     typeof body?.reason === "string" ? body.reason.slice(0, 200) : ""
   );
+
+  if (!node) {
+    reply.code(404);
+    return {
+      ok: false,
+      error: "NODE_NOT_FOUND",
+      message: "未找到指定节点。"
+    };
+  }
+
+  return {
+    ok: true,
+    node
+  };
+}
+
+export async function markNodeManualAvailableHandler(request: FastifyRequest, reply: FastifyReply) {
+  const params = request.params as ManualAvailableParams;
+  const nodeId = params.nodeId || "";
+
+  if (!nodeId) {
+    reply.code(400);
+    return {
+      ok: false,
+      error: "NODE_ID_REQUIRED",
+      message: "请提供 nodeId。"
+    };
+  }
+
+  const node = await markNodeManualAvailable(nodeId);
 
   if (!node) {
     reply.code(404);

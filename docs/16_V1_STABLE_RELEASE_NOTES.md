@@ -20,6 +20,12 @@ v1.0.4 修复路径版单节点检测接口：`POST /api/detection/xray/test-nod
 
 前端节点行按钮改为调用路径版接口。该热修复不修改 Xray 配置生成、Reality 参数解析、订阅、领取、防刷、Caddy、Dockerfile 或 docker-compose 配置，不输出 raw 节点、token 或完整订阅链接。
 
+# v1.0.5 兜底增强补充
+
+v1.0.5 增加手动验证可用兜底机制：管理员在 VPS 上手动验证节点可用后，可将节点标记为 `detectionCore=manual` 的可用节点，并允许其进入订阅池。该能力用于避免自动检测误判阻塞实际发布。
+
+本版本不修改 Xray 自动检测逻辑，不修改订阅领取逻辑，不修改 Caddy、Dockerfile 或 docker-compose 配置，不提交 `data/`、`cores/` 或 `.env`。
+
 # 16 v1.0.0 稳定版发布说明
 
 ## 文档目的

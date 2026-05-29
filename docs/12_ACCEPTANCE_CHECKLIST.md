@@ -362,6 +362,18 @@ v0.5.0 验收项：
 - 不修改 Caddy、Dockerfile 或 docker-compose.yml。
 - 不提交 `.env`、`data/` 或 `cores/`。
 
+# v1.0.5 兜底机制验收项
+
+- `/api/status` 返回 `version=v1.0.5`。
+- `POST /api/node-pool/mark-manual-available/:nodeId` 可调用。
+- 调用后节点写入 `status=available`、`manualOverride=true`、`manualStatus=available`、`detectionCore=manual`、`failureReason=null` 和新的 `lastTestedAt`。
+- 后台节点行显示“标记为手动验证可用”按钮。
+- 页面清楚显示“手动验证可用”，不混淆为自动检测可用。
+- 执行订阅刷新后，手动验证可用节点可进入订阅池。
+- 不输出 raw 节点、完整 publicKey、订阅 token、完整订阅链接或真实口令。
+- 不修改 Caddy、Dockerfile 或 docker-compose.yml。
+- 不提交 `.env`、`data/` 或 `cores/`。
+
 # v1.0.0 稳定版验收项
 
 - `/api/status` 返回 `version=v1.0.0`。

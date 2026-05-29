@@ -244,7 +244,7 @@ type PublishPrepareResponse = {
   error?: string;
 };
 
-const appVersion = "v1.0.4";
+const appVersion = "v1.0.5";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -300,6 +300,9 @@ function formatStats(stats: Record<string, number> | undefined) {
 function formatManualStatus(node: NodePoolItem) {
   if (!node.manualOverride) {
     return "否";
+  }
+  if (node.manualStatus === "available" && node.detectionCore === "manual") {
+    return "手动验证可用";
   }
   return node.manualStatus === "available" ? "手动可用" : "手动不可用";
 }
@@ -432,13 +435,15 @@ function NodeListTable({
   onManualStatus,
   manualActionNodeId,
   onTestNode,
-  testingNodeId
+  testingNodeId,
+  onMarkManualAvailable
 }: {
   nodes: NodePoolItem[];
   onManualStatus?: (node: NodePoolItem, status: "available" | "unavailable" | "untested") => void | Promise<void>;
   manualActionNodeId?: string | null;
   onTestNode?: (node: NodePoolItem) => void | Promise<void>;
   testingNodeId?: string | null;
+  onMarkManualAvailable?: (node: NodePoolItem) => void | Promise<void>;
 }) {
   return (
     <div className="table-panel">
@@ -485,11 +490,16 @@ function NodeListTable({
                 <td>{formatDate(node.firstSeenAt)}</td>
                 <td>{formatDate(node.lastTestedAt || null)}</td>
                 <td>
-                  {onManualStatus || onTestNode ? (
+                  {onManualStatus || onTestNode || onMarkManualAvailable ? (
                     <div className="node-actions">
                       {onTestNode ? (
                         <button disabled={testingNodeId === node.id} onClick={() => { void onTestNode(node); }}>
                           {testingNodeId === node.id ? "检测中..." : node.lastTestedAt ? "重新 Xray 检测" : "Xray 检测"}
+                        </button>
+                      ) : null}
+                      {onMarkManualAvailable ? (
+                        <button disabled={manualActionNodeId === node.id} onClick={() => { void onMarkManualAvailable(node); }}>
+                          标记为手动验证可用
                         </button>
                       ) : null}
                       {onManualStatus ? (
@@ -632,6 +642,19 @@ async function verifyClaimCode(code: string): Promise<ClaimVerifyResponse> {
     body: JSON.stringify({ code })
   });
   const payload = (await response.json()) as ClaimVerifyResponse;
+  return payload;
+}
+
+async function markManualAvailable(nodeId: string): Promise<{ ok: boolean; node: NodePoolItem }> {
+  const response = await fetch(`/api/node-pool/mark-manual-available/${encodeURIComponent(nodeId)}`, {
+    method: "POST"
+  });
+  const payload = await response.json();
+
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.message || payload.error || "手动验证可用写入失败");
+  }
+
   return payload;
 }
 
@@ -1455,6 +1478,27 @@ function StatsPage() {
     }
   }
 
+  async function handleMarkManualAvailable(node: NodePoolItem) {
+    const confirmed = window.confirm("确认该节点已经在 VPS 手动验证可用，并加入订阅池吗？");
+
+    if (!confirmed) {
+      return;
+    }
+
+    setManualActionNodeId(node.id);
+    setMessage(null);
+
+    try {
+      await markManualAvailable(node.id);
+      await loadStatsData();
+      setMessage("节点已标记为手动验证可用，可进入订阅池。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "手动验证可用写入失败");
+    } finally {
+      setManualActionNodeId(null);
+    }
+  }
+
   return (
     <>
       <div className="section-heading-row">
@@ -1485,7 +1529,12 @@ function StatsPage() {
       {message ? <div className="inline-message">{message}</div> : null}
 
       <h3 className="subheading">最近节点列表</h3>
-      <NodeListTable nodes={nodes} onManualStatus={handleManualStatus} manualActionNodeId={manualActionNodeId} />
+      <NodeListTable
+        nodes={nodes}
+        onManualStatus={handleManualStatus}
+        onMarkManualAvailable={handleMarkManualAvailable}
+        manualActionNodeId={manualActionNodeId}
+      />
       <SectionNote>自动检测可能误判，手动确认可用的节点后续也可进入订阅池。统计数据来自本地 JSON 节点池，页面只展示脱敏节点，不展示 raw 节点。</SectionNote>
     </>
   );
