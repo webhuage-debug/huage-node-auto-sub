@@ -3,7 +3,7 @@ import { getNodeById, getNodePoolStatus, listNodesByStatus, updateNodeDetectionR
 import type { NodePoolItem, NodeStatus } from "../nodePool/nodeTypes.js";
 import { getDetectionState, markDetectionError, markDetectionFinished, markDetectionStarted, pushDetectionHistory, setTestingCount } from "./detectionState.js";
 import type { DetectionHistoryItem, DetectionResult, DetectionSettings } from "./detectionTypes.js";
-import { isXrayInstalled, testNodeWithXray } from "./xrayDetector.js";
+import { getXrayCoreStatus, testNodeWithXray } from "./xrayDetector.js";
 
 type TestOneBody = {
   nodeId?: string;
@@ -89,12 +89,17 @@ async function runWithConcurrency(nodes: NodePoolItem[], settings: DetectionSett
 export async function getXrayDetectionStatus() {
   const settings = getDetectionSettings();
   const state = getDetectionState();
-  const installed = await isXrayInstalled(settings.xrayBinaryPath);
+  const coreStatus = await getXrayCoreStatus(settings.xrayBinaryPath);
 
   return {
     ok: true,
     core: "xray",
-    xrayInstalled: installed,
+    installed: coreStatus.installed,
+    available: coreStatus.available,
+    binaryPath: coreStatus.binaryPath,
+    version: coreStatus.version,
+    failureReason: coreStatus.failureReason,
+    xrayInstalled: coreStatus.installed,
     xrayBinaryPath: settings.xrayBinaryPath,
     running: state.running,
     queueSize: state.queueSize,
@@ -105,7 +110,7 @@ export async function getXrayDetectionStatus() {
     maxConcurrent: settings.maxConcurrent,
     proxyType: "socks",
     testUrl: settings.testUrl,
-    message: installed ? null : xrayMissingMessage
+    message: coreStatus.message
   };
 }
 
@@ -122,12 +127,14 @@ export async function testOneNodeHandler(request: FastifyRequest, reply: Fastify
 
   const settings = getDetectionSettings();
 
-  if (!(await isXrayInstalled(settings.xrayBinaryPath))) {
+  const coreStatus = await getXrayCoreStatus(settings.xrayBinaryPath);
+  if (!coreStatus.available) {
     reply.code(400);
     return {
       ok: false,
       error: "XRAY_NOT_INSTALLED",
-      message: xrayMissingMessage
+      failureReason: coreStatus.failureReason,
+      message: coreStatus.message
     };
   }
 
@@ -191,12 +198,14 @@ export async function testUntestedNodesHandler(request: FastifyRequest, reply: F
   }
 
   const settings = getDetectionSettings();
-  if (!(await isXrayInstalled(settings.xrayBinaryPath))) {
+  const coreStatus = await getXrayCoreStatus(settings.xrayBinaryPath);
+  if (!coreStatus.available) {
     reply.code(400);
     return {
       ok: false,
       error: "XRAY_NOT_INSTALLED",
-      message: xrayMissingMessage
+      failureReason: coreStatus.failureReason,
+      message: coreStatus.message
     };
   }
 

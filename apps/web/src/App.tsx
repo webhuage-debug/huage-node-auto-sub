@@ -131,6 +131,11 @@ type XrayDetectionStatus = {
   core: string;
   xrayInstalled: boolean;
   xrayBinaryPath: string;
+  installed?: boolean;
+  available?: boolean;
+  binaryPath?: string;
+  version?: string | null;
+  failureReason?: string | null;
   running: boolean;
   queueSize: number;
   testingCount: number;
@@ -230,7 +235,7 @@ type PublishPrepareResponse = {
   error?: string;
 };
 
-const appVersion = "v1.0.0";
+const appVersion = "v1.0.1";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -956,23 +961,31 @@ function DetectionPage() {
     }
   }
 
-  const detectionDisabled = Boolean(testingLimit || xrayStatus?.running || !xrayStatus?.xrayInstalled);
+  const xrayAvailable = Boolean(xrayStatus?.available ?? xrayStatus?.xrayInstalled);
+  const detectionDisabled = Boolean(testingLimit || xrayStatus?.running || !xrayAvailable);
 
   return (
     <>
       <h3 className="subheading">Xray-core 状态</h3>
       <InfoGrid
         items={[
-          ["是否已安装", formatBool(Boolean(xrayStatus?.xrayInstalled), "已安装", "未安装")],
-          ["Xray 路径", xrayStatus?.xrayBinaryPath || "/app/cores/xray/xray"],
+          ["是否已安装", formatBool(Boolean(xrayStatus?.installed ?? xrayStatus?.xrayInstalled), "已安装", "未安装")],
+          ["是否可执行", formatBool(xrayAvailable, "可执行", "不可用")],
+          ["Xray 版本", xrayStatus?.version || "未识别"],
+          ["Xray 路径", xrayStatus?.binaryPath || xrayStatus?.xrayBinaryPath || "/app/cores/xray/xray"],
           ["是否正在检测", formatBool(Boolean(xrayStatus?.running), "检测中", "未运行")],
           ["当前队列数量", String(xrayStatus?.queueSize ?? 0)],
           ["最近检测时间", formatDate(xrayStatus?.lastRunAt || null)],
-          ["最近错误", xrayStatus?.lastError || xrayStatus?.message || "暂无"],
+          ["最近错误", xrayStatus?.lastError || xrayStatus?.failureReason || xrayStatus?.message || "暂无"],
           ["检测超时", `${xrayStatus?.timeoutSeconds ?? 10} 秒`],
           ["最大并发", String(xrayStatus?.maxConcurrent ?? 1)]
         ]}
       />
+      <SectionNote>
+        {xrayAvailable
+          ? "Xray-core 已通过 version 检查，真实代理检测可用。"
+          : `Xray-core 当前不可用：${xrayStatus?.failureReason || xrayStatus?.message || "请检查内核挂载和执行权限"}`}
+      </SectionNote>
 
       <h3 className="subheading">节点检测统计</h3>
       <InfoGrid
@@ -1248,7 +1261,24 @@ function SubscriptionPage() {
 }
 
 function CoresPage() {
-  const rows = ["Mihomo", "sing-box", "Xray-core"];
+  const [xrayStatus, setXrayStatus] = useState<XrayDetectionStatus | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const loadXrayStatus = useCallback(async () => {
+    try {
+      setXrayStatus(await fetchXrayStatus());
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Xray-core 状态读取失败");
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadXrayStatus();
+  }, [loadXrayStatus]);
+
+  const xrayInstalled = Boolean(xrayStatus?.installed ?? xrayStatus?.xrayInstalled);
+  const xrayAvailable = Boolean(xrayStatus?.available ?? xrayStatus?.xrayInstalled);
 
   return (
     <>
@@ -1263,24 +1293,41 @@ function CoresPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((name) => (
-              <tr key={name}>
-                <td>{name}</td>
-                <td>
-                  <select onChange={notifyPlaceholder} defaultValue="">
-                    <option value="">选择版本，占位下拉框</option>
-                  </select>
-                </td>
-                <td>
-                  <button onClick={notifyPlaceholder}>安装/更新，占位按钮</button>
-                </td>
-                <td>未安装</td>
-              </tr>
-            ))}
+            <tr>
+              <td>Mihomo</td>
+              <td>暂未开放</td>
+              <td><button disabled>暂未开放</button></td>
+              <td>未安装</td>
+            </tr>
+            <tr>
+              <td>sing-box</td>
+              <td>暂未开放</td>
+              <td><button disabled>暂未开放</button></td>
+              <td>未安装</td>
+            </tr>
+            <tr>
+              <td>Xray-core</td>
+              <td>使用容器内固定路径</td>
+              <td><button onClick={() => void loadXrayStatus()}>刷新状态</button></td>
+              <td>
+                {xrayInstalled ? "已安装" : "未安装"}
+                {xrayStatus?.version ? ` / 版本：${xrayStatus.version}` : ""}
+                {xrayAvailable ? " / 可执行" : ""}
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
-      <SectionNote>内核仅用于节点可用性检测，不作为公开代理服务运行。第一阶段只支持 Linux amd64。</SectionNote>
+      <InfoGrid
+        items={[
+          ["Xray-core 状态", xrayAvailable ? "已安装并可执行" : xrayInstalled ? "已安装但不可用" : "未安装"],
+          ["Xray-core 版本", xrayStatus?.version || "未识别"],
+          ["可执行路径", xrayStatus?.binaryPath || xrayStatus?.xrayBinaryPath || "/app/cores/xray/xray"],
+          ["失败原因", xrayStatus?.failureReason || xrayStatus?.message || "暂无"]
+        ]}
+      />
+      {message ? <div className="inline-message">{message}</div> : null}
+      <SectionNote>内核仅用于节点可用性检测，不作为公开代理服务运行。Xray-core 状态来自 /api/detection/xray/status 的真实 version 检查；sing-box / Mihomo 暂未开放。</SectionNote>
     </>
   );
 }

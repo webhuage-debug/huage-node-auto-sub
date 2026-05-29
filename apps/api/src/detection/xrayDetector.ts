@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import net from "node:net";
 import tls from "node:tls";
@@ -6,19 +7,104 @@ import { getFreeLocalPort } from "../utils/port.js";
 import { removeTempFile, writeTempJsonFile } from "../utils/tempFile.js";
 import type { NodePoolItem } from "../nodePool/nodeTypes.js";
 import { buildXrayConfig, getNodeDetectionDebug } from "./xrayConfigBuilder.js";
-import type { DetectionResult, DetectionSettings } from "./detectionTypes.js";
+import type { DetectionResult, DetectionSettings, XrayCoreStatus } from "./detectionTypes.js";
 
 const xrayMissingMessage = "未检测到 Xray-core，请先安装或放置 Xray-core 到指定目录";
 
 type SocksStage = "SOCKS_GREETING" | "SOCKS_CONNECT" | "TLS_REQUEST";
 
 export async function isXrayInstalled(binaryPath: string): Promise<boolean> {
+  return (await getXrayCoreStatus(binaryPath)).available;
+}
+
+function parseXrayVersion(output: string): string | null {
+  const firstLine = output.split(/\r?\n/).find((line) => line.trim().length > 0) || "";
+  const match = firstLine.match(/\bXray\s+([^\s]+)/i);
+  return match?.[1] || null;
+}
+
+function runXrayVersion(binaryPath: string): Promise<{ exitCode: number | null; output: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(binaryPath, ["version"], {
+      stdio: "pipe"
+    });
+
+    let output = "";
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error("XRAY_VERSION_CHECK_TIMEOUT"));
+    }, 5000);
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      output += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      output += chunk.toString("utf8");
+    });
+    child.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.once("close", (exitCode) => {
+      clearTimeout(timeout);
+      resolve({ exitCode, output });
+    });
+  });
+}
+
+export async function getXrayCoreStatus(binaryPath: string): Promise<XrayCoreStatus> {
   try {
-    await fs.access(binaryPath);
-    return true;
+    await fs.access(binaryPath, fsConstants.F_OK);
   } catch {
-    return false;
+    return {
+      installed: false,
+      available: false,
+      binaryPath,
+      version: null,
+      failureReason: "XRAY_BINARY_NOT_FOUND",
+      message: "未找到 Xray-core，请确认 cores/xray/xray 已挂载到容器"
+    };
   }
+
+  try {
+    await fs.access(binaryPath, fsConstants.X_OK);
+  } catch {
+    return {
+      installed: true,
+      available: false,
+      binaryPath,
+      version: null,
+      failureReason: "XRAY_BINARY_NOT_EXECUTABLE",
+      message: "Xray-core 文件存在，但没有执行权限"
+    };
+  }
+
+  try {
+    const result = await runXrayVersion(binaryPath);
+    const version = parseXrayVersion(result.output);
+
+    if (result.exitCode === 0 && version) {
+      return {
+        installed: true,
+        available: true,
+        binaryPath,
+        version,
+        failureReason: null,
+        message: "Xray-core 已安装并可执行"
+      };
+    }
+  } catch {
+    // Keep the public status response compact and safe.
+  }
+
+  return {
+    installed: true,
+    available: false,
+    binaryPath,
+    version: null,
+    failureReason: "XRAY_VERSION_CHECK_FAILED",
+    message: "Xray-core version 检查失败，请确认内核文件可在容器内执行"
+  };
 }
 
 function delay(ms: number): Promise<void> {

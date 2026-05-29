@@ -39,3 +39,12 @@ export type DetectionSettings = {
   batchDefaultLimit: number;
   batchMaxLimit: number;
 };
+
+export type XrayCoreStatus = {
+  installed: boolean;
+  available: boolean;
+  binaryPath: string;
+  version: string | null;
+  failureReason: "XRAY_BINARY_NOT_FOUND" | "XRAY_BINARY_NOT_EXECUTABLE" | "XRAY_VERSION_CHECK_FAILED" | null;
+  message: string;
+};

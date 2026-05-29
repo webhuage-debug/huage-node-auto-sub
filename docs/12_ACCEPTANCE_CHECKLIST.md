@@ -302,6 +302,20 @@ v0.5.0 验收项：
 - 不修改核心业务逻辑。
 - 不修改 Caddy、Dockerfile 或 docker-compose.yml。
 - 不提交 `data/` 或 `cores/`。
+# v1.0.1 热修复验收项
+
+- `/api/status` 返回 `version=v1.0.1`。
+- 容器内执行 `/app/cores/xray/xray version` 成功。
+- `/api/detection/xray/status` 返回 `installed=true`、`available=true`、`binaryPath=/app/cores/xray/xray` 和实际版本号。
+- 文件不存在时返回 `failureReason=XRAY_BINARY_NOT_FOUND`。
+- 文件无执行权限时返回 `failureReason=XRAY_BINARY_NOT_EXECUTABLE`。
+- version 检查失败时返回 `failureReason=XRAY_VERSION_CHECK_FAILED`。
+- 内核管理页显示 Xray-core 已安装、版本号和可执行路径。
+- 检测管理页在 Xray-core 可用时显示真实代理检测可用。
+- 导入测试节点后，检测结果可以是 `available` 或 `unavailable`，但不能是 xray not found。
+- 不提交 `cores/`、`data/` 或 `.env`。
+- 不修改 Dockerfile、docker-compose.yml 或 Caddy。
+
 # v1.0.0 稳定版验收项
 
 - `/api/status` 返回 `version=v1.0.0`。
