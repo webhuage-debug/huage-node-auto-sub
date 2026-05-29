@@ -198,7 +198,26 @@ type ClaimVerifyResponse = {
   error?: string;
 };
 
-const appVersion = "v0.8.2";
+type PublishCheckStatus = "pass" | "warning" | "fail";
+
+type PublishCheckItem = {
+  key: string;
+  label: string;
+  status: PublishCheckStatus;
+  message: string;
+};
+
+type PublishCheckResponse = {
+  ok: boolean;
+  version: string;
+  canPublish: boolean;
+  level: PublishCheckStatus;
+  summary: string;
+  checks: PublishCheckItem[];
+  reminders: string[];
+};
+
+const appVersion = "v0.8.3";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -256,6 +275,26 @@ function formatManualStatus(node: NodePoolItem) {
     return "否";
   }
   return node.manualStatus === "available" ? "手动可用" : "手动不可用";
+}
+
+function formatPublishCheckStatus(status: PublishCheckStatus) {
+  if (status === "pass") {
+    return "通过";
+  }
+  if (status === "warning") {
+    return "警告";
+  }
+  return "失败";
+}
+
+function formatPublishCheckSummary(status: PublishCheckResponse | null) {
+  if (!status) {
+    return "正在读取发布前检查结果";
+  }
+  if (!status.canPublish) {
+    return "暂不建议发布";
+  }
+  return status.level === "warning" ? "可以发布但有警告" : "可以发布";
 }
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -554,6 +593,14 @@ async function verifyClaimCode(code: string): Promise<ClaimVerifyResponse> {
   });
   const payload = (await response.json()) as ClaimVerifyResponse;
   return payload;
+}
+
+async function fetchPublishCheckStatus(): Promise<PublishCheckResponse> {
+  const response = await fetch("/api/publish-check/status");
+  if (!response.ok) {
+    throw new Error("发布前检查读取失败");
+  }
+  return response.json();
 }
 
 async function fetchDetectionHistory(): Promise<DetectionHistoryResponse> {
@@ -1317,6 +1364,28 @@ function StatsPage() {
 }
 
 function SettingsPage() {
+  const [publishCheck, setPublishCheck] = useState<PublishCheckResponse | null>(null);
+  const [loadingPublishCheck, setLoadingPublishCheck] = useState(true);
+  const [publishCheckError, setPublishCheckError] = useState<string | null>(null);
+
+  const loadPublishCheck = useCallback(async () => {
+    setLoadingPublishCheck(true);
+    setPublishCheckError(null);
+
+    try {
+      const result = await fetchPublishCheckStatus();
+      setPublishCheck(result);
+    } catch (error) {
+      setPublishCheckError(error instanceof Error ? error.message : "发布前检查读取失败");
+    } finally {
+      setLoadingPublishCheck(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPublishCheck();
+  }, [loadPublishCheck]);
+
   return (
     <>
       <InfoGrid
@@ -1337,6 +1406,63 @@ function SettingsPage() {
         <button onClick={notifyPlaceholder}>保存设置，占位按钮</button>
       </div>
       <SectionNote>本页面当前只展示默认配置，保存功能后续实现。</SectionNote>
+
+      <section className="publish-check-panel">
+        <div className="section-heading-row">
+          <h3 className="subheading">发布前检查</h3>
+          <button disabled={loadingPublishCheck} onClick={() => void loadPublishCheck()}>
+            {loadingPublishCheck ? "正在检查..." : "刷新检查"}
+          </button>
+        </div>
+
+        <div className={`publish-summary ${publishCheck?.level || "warning"}`}>
+          <strong>{formatPublishCheckSummary(publishCheck)}</strong>
+          <span>{publishCheck?.summary || "正在检查订阅、口令、公开入口和后台 API 暴露状态。"}</span>
+        </div>
+
+        {publishCheckError ? <div className="inline-message">{publishCheckError}</div> : null}
+
+        <div className="table-panel publish-check-table">
+          <table>
+            <thead>
+              <tr>
+                <th>检查项</th>
+                <th>状态</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(publishCheck?.checks || []).map((item) => (
+                <tr key={item.key}>
+                  <td>{item.label}</td>
+                  <td>
+                    <span className={`check-badge ${item.status}`}>{formatPublishCheckStatus(item.status)}</span>
+                  </td>
+                  <td>{item.message}</td>
+                </tr>
+              ))}
+              {!publishCheck?.checks.length ? (
+                <tr>
+                  <td colSpan={3}>{loadingPublishCheck ? "正在读取检查结果..." : "暂无检查结果"}</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="section-note">
+          <strong>固定提醒：</strong>
+          <ul className="reminder-list">
+            {(publishCheck?.reminders || [
+              "正式发布前建议最后重置一次安全订阅 token",
+              "确认视频口令已经改成本期口令",
+              "公开领取页只应该暴露 /claim、/api/claim/verify、/sub/*"
+            ]).map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      </section>
     </>
   );
 }

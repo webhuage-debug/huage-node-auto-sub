@@ -31,6 +31,7 @@ import {
 } from "./subscription/subscriptionService.js";
 import { startSubscriptionAutoRefresh } from "./subscription/subscriptionAutoRefresh.js";
 import { verifyClaimCodeHandler } from "./claim/claimService.js";
+import { getPublishCheckStatusHandler } from "./publishCheck/publishCheckService.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -164,6 +165,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/subscription/renew-expiration", async () => renewSubscriptionExpirationHandler());
 
   app.post("/api/claim/verify", async (request, reply) => verifyClaimCodeHandler(request, reply));
+
+  app.get("/api/publish-check/status", async () => getPublishCheckStatusHandler());
 
   app.get("/sub/:token", async (request, reply) => publicSubscriptionHandler(request, reply));
 

@@ -254,3 +254,14 @@ v0.5.0 验收项：
 - 点击下载二维码后能下载 `huage-secure-subscription-qr.png`。
 - 下载的二维码内容仍是公开订阅地址。
 - 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。
+
+## v0.8.3 验收项
+
+- `/api/status` 返回 `version=v0.8.3`。
+- `/api/publish-check/status` 可访问。
+- 发布前检查返回 `canPublish`、`level`、`checks` 和 `reminders`。
+- 检查结果不包含 token、完整订阅链接、`CLAIM_ACCESS_CODE`、raw/base64 内容或 raw 节点。
+- 检查项包含订阅生成、订阅有效期、节点数量、公开订阅域名、复制链接准备、领取口令配置、公开领取页、公开验证接口和后台 API 暴露检查。
+- 系统设置页显示发布前检查结果，并提供“刷新检查”按钮。
+- 页面不显示 token、完整订阅链接、真实口令、raw/base64 链接或 raw 节点。
+- 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。
