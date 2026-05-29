@@ -205,6 +205,7 @@ type PublishCheckItem = {
   label: string;
   status: PublishCheckStatus;
   message: string;
+  detail?: string;
 };
 
 type PublishCheckResponse = {
@@ -217,7 +218,7 @@ type PublishCheckResponse = {
   reminders: string[];
 };
 
-const appVersion = "v0.8.3";
+const appVersion = "v0.8.4";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -294,7 +295,7 @@ function formatPublishCheckSummary(status: PublishCheckResponse | null) {
   if (!status.canPublish) {
     return "暂不建议发布";
   }
-  return status.level === "warning" ? "可以发布但有警告" : "可以发布";
+  return status.level === "warning" ? "可以发布，但建议检查警告项" : "可以发布";
 }
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -1438,7 +1439,10 @@ function SettingsPage() {
                   <td>
                     <span className={`check-badge ${item.status}`}>{formatPublishCheckStatus(item.status)}</span>
                   </td>
-                  <td>{item.message}</td>
+                  <td>
+                    <span>{item.message}</span>
+                    {item.detail ? <small className="check-detail">{item.detail}</small> : null}
+                  </td>
                 </tr>
               ))}
               {!publishCheck?.checks.length ? (

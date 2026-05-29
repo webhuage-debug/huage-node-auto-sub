@@ -5,6 +5,7 @@ export type PublishCheckItem = {
   label: string;
   status: PublishCheckStatus;
   message: string;
+  detail?: string;
 };
 
 export type PublishCheckResponse = {

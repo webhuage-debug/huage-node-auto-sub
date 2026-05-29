@@ -510,6 +510,13 @@ a:hover {
   vertical-align: top;
 }
 
+.check-detail {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
 .check-badge {
   border-radius: 999px;
   display: inline-flex;

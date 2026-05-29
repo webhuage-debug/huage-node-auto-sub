@@ -116,36 +116,60 @@ async function checkClaimVerify(publicBaseUrl: string | null): Promise<PublishCh
     });
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
 
-    if (payload?.error === "INVALID_CLAIM_CODE" || payload?.error === "CLAIM_TOO_MANY_ATTEMPTS") {
+    if (payload?.error === "INVALID_CLAIM_CODE") {
       return {
         key: "publicClaimVerify",
-        label: "公开验证接口",
+        label: "公开口令验证接口",
         status: "pass",
-        message: `/api/claim/verify 可访问，返回 ${payload.error}`
+        message: "领取验证接口可达，错误口令返回预期结果",
+        detail: "INVALID_CLAIM_CODE"
+      };
+    }
+
+    if (payload?.error === "CLAIM_TOO_MANY_ATTEMPTS") {
+      return {
+        key: "publicClaimVerify",
+        label: "公开口令验证接口",
+        status: "warning",
+        message: "领取验证接口可达，但当前已进入防刷冷却期，稍后再试。",
+        detail: "CLAIM_TOO_MANY_ATTEMPTS"
       };
     }
 
     if (response.status === 404) {
       return {
         key: "publicClaimVerify",
-        label: "公开验证接口",
+        label: "公开口令验证接口",
         status: "fail",
-        message: "/api/claim/verify 返回 404，公开领取页无法验证口令"
+        message: "/api/claim/verify 返回 404，公开领取页无法验证口令",
+        detail: "HTTP_404"
+      };
+    }
+
+    if (response.status >= 500) {
+      return {
+        key: "publicClaimVerify",
+        label: "公开口令验证接口",
+        status: "fail",
+        message: `/api/claim/verify 返回 ${response.status}，公开验证接口异常`,
+        detail: `HTTP_${response.status}`
       };
     }
 
     return {
       key: "publicClaimVerify",
-      label: "公开验证接口",
+      label: "公开口令验证接口",
       status: "warning",
-      message: `/api/claim/verify 返回 ${response.status}，未识别为预期错误码`
+      message: `/api/claim/verify 返回 ${response.status}，未识别为预期错误码`,
+      detail: payload?.error || `HTTP_${response.status}`
     };
   } catch (error) {
     return {
       key: "publicClaimVerify",
-      label: "公开验证接口",
+      label: "公开口令验证接口",
       status: "warning",
-      message: `服务端网络检查失败：${getErrorMessage(error)}`
+      message: `服务端网络检查失败：${getErrorMessage(error)}`,
+      detail: "NETWORK_CHECK_FAILED"
     };
   }
 }
@@ -233,7 +257,7 @@ export async function getPublishCheckStatusHandler(): Promise<PublishCheckRespon
     {
       key: "systemVersion",
       label: "系统版本",
-      status: appConfig.version === "v0.8.3" ? "pass" : "warning",
+      status: appConfig.version === "v0.8.4" ? "pass" : "warning",
       message: `当前版本：${appConfig.version}`
     },
     {

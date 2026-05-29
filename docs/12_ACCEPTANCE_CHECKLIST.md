@@ -265,3 +265,14 @@ v0.5.0 验收项：
 - 系统设置页显示发布前检查结果，并提供“刷新检查”按钮。
 - 页面不显示 token、完整订阅链接、真实口令、raw/base64 链接或 raw 节点。
 - 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。
+
+## v0.8.4 验收项
+
+- `/api/status` 返回 `version=v0.8.4`。
+- `/api/publish-check/status` 可访问。
+- `INVALID_CLAIM_CODE` 被识别为公开口令验证接口可达，状态为 `pass`。
+- `CLAIM_TOO_MANY_ATTEMPTS` 被识别为接口可达但进入防刷冷却期，状态为 `warning`。
+- 公开后台 API 暴露检查仍然严格，公开域名下后台 API 非 404 必须 `fail`。
+- 页面能清晰显示通过、警告、失败和安全 detail。
+- 页面不显示 token、完整订阅链接、真实口令、raw/base64 链接或 raw 节点。
+- 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。
