@@ -169,3 +169,10 @@ v0.8.5 增加 `POST /api/publish-check/prepare`，用于后台执行发布前准
 - v1.0.0：稳定版封版（当前稳定版）
 - 本版本不新增业务功能，只更新版本号、README、稳定版发布说明、运行数据备份脚本和最终验收清单。
 - 后续开发必须另开新版本，不能在 v1.0.0 稳定版上混入新业务。
+
+# v1.0.6 发布管理增强
+
+- v1.0.6：新增后台“发布管理 / 本期领取设置”页面。
+- 集中显示本期领取口令、公开领取页、订阅生成状态、可用节点数、有效期、最后生成时间、最后重置 token 时间、最后刷新订阅时间和操作历史。
+- 新增 `GET /api/release/current`、`POST /api/release/set-claim-code`、`POST /api/release/random-claim-code`、`POST /api/release/reset-subscription-token`、`POST /api/release/rebuild-subscription`、`GET /api/release/history`。
+- 本版本不改变订阅、领取、防刷、Xray 检测和 Caddy/Docker 配置；不提交 `data/`、`cores/` 或 `.env`。

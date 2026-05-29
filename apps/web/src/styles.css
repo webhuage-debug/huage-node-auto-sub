@@ -660,3 +660,23 @@ a:hover {
   margin-top: 24px;
   padding-top: 16px;
 }
+
+.release-page {
+  display: grid;
+  gap: 18px;
+}
+
+.release-code-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.release-code-row input {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  min-height: 40px;
+  min-width: 260px;
+  padding: 9px 12px;
+}

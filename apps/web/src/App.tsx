@@ -6,6 +6,7 @@ type MenuKey =
   | "collector"
   | "detection"
   | "subscription"
+  | "release"
   | "cores"
   | "stats"
   | "settings";
@@ -244,9 +245,44 @@ type PublishPrepareResponse = {
   error?: string;
 };
 
-const appVersion = "v1.0.5";
+type ReleaseHistoryItem = {
+  id: string;
+  type: string;
+  message: string;
+  createdAt: string;
+  safeDetail: Record<string, string | number | boolean | null>;
+};
+
+type ReleaseCurrentResponse = {
+  ok: boolean;
+  claimCode: string | null;
+  claimPageUrl: string | null;
+  subscriptionGenerated: boolean;
+  nodeCount: number;
+  targetNodeCount: number;
+  minNodeCount: number;
+  warning: string | null;
+  subscriptionAccessible: boolean;
+  expiresAt: string | null;
+  remainingDays: number;
+  lastGeneratedAt: string | null;
+  lastTokenResetAt: string | null;
+  lastSubscriptionRebuildAt: string | null;
+  maskedSubscriptionUrl: string | null;
+  publicBaseUrlConfigured: boolean;
+  message?: string;
+  error?: string;
+};
+
+type ReleaseHistoryResponse = {
+  ok: boolean;
+  items: ReleaseHistoryItem[];
+};
+
+const appVersion = "v1.0.6";
 
 const menus: MenuItem[] = [
+  { key: "release", label: "发布管理" },
   { key: "overview", label: "总览" },
   { key: "collector", label: "采集管理" },
   { key: "detection", label: "检测管理" },
@@ -676,6 +712,72 @@ async function preparePublish(): Promise<PublishPrepareResponse> {
     throw new Error(payload.message || payload.error || "发布前准备失败，请检查服务状态");
   }
 
+  return payload;
+}
+
+async function fetchReleaseCurrent(): Promise<ReleaseCurrentResponse> {
+  const response = await fetch("/api/release/current");
+  const payload = (await response.json()) as ReleaseCurrentResponse;
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || "发布信息读取失败");
+  }
+  return payload;
+}
+
+async function fetchReleaseHistory(): Promise<ReleaseHistoryResponse> {
+  const response = await fetch("/api/release/history");
+  const payload = (await response.json()) as ReleaseHistoryResponse;
+  if (!response.ok || !payload.ok) {
+    throw new Error("发布操作历史读取失败");
+  }
+  return payload;
+}
+
+async function setReleaseClaimCode(claimCode: string): Promise<ReleaseCurrentResponse> {
+  const response = await fetch("/api/release/set-claim-code", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ claimCode })
+  });
+  const payload = (await response.json()) as ReleaseCurrentResponse;
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || "领取口令设置失败");
+  }
+  return payload;
+}
+
+async function randomReleaseClaimCode(): Promise<ReleaseCurrentResponse> {
+  const response = await fetch("/api/release/random-claim-code", {
+    method: "POST"
+  });
+  const payload = (await response.json()) as ReleaseCurrentResponse;
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || "随机生成口令失败");
+  }
+  return payload;
+}
+
+async function resetReleaseSubscriptionToken(): Promise<ReleaseCurrentResponse> {
+  const response = await fetch("/api/release/reset-subscription-token", {
+    method: "POST"
+  });
+  const payload = (await response.json()) as ReleaseCurrentResponse;
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || "重置订阅 token 失败");
+  }
+  return payload;
+}
+
+async function rebuildReleaseSubscription(): Promise<ReleaseCurrentResponse> {
+  const response = await fetch("/api/release/rebuild-subscription", {
+    method: "POST"
+  });
+  const payload = (await response.json()) as ReleaseCurrentResponse;
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || "刷新订阅失败");
+  }
   return payload;
 }
 
@@ -1540,6 +1642,192 @@ function StatsPage() {
   );
 }
 
+function ReleasePage() {
+  const [current, setCurrent] = useState<ReleaseCurrentResponse | null>(null);
+  const [history, setHistory] = useState<ReleaseHistoryItem[]>([]);
+  const [claimCodeDraft, setClaimCodeDraft] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [acting, setActing] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const loadRelease = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [nextCurrent, nextHistory] = await Promise.all([fetchReleaseCurrent(), fetchReleaseHistory()]);
+      setCurrent(nextCurrent);
+      setHistory(nextHistory.items);
+      setClaimCodeDraft(nextCurrent.claimCode || "");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "发布信息读取失败");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadRelease();
+  }, [loadRelease]);
+
+  async function runReleaseAction(actionKey: string, runner: () => Promise<ReleaseCurrentResponse>, successMessage: string) {
+    setActing(actionKey);
+    setMessage(null);
+    try {
+      const nextCurrent = await runner();
+      const nextHistory = await fetchReleaseHistory();
+      setCurrent(nextCurrent);
+      setHistory(nextHistory.items);
+      setClaimCodeDraft(nextCurrent.claimCode || "");
+      setMessage(successMessage);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "操作失败，请检查服务状态");
+    } finally {
+      setActing(null);
+    }
+  }
+
+  async function handleSetClaimCode() {
+    await runReleaseAction("set-code", () => setReleaseClaimCode(claimCodeDraft), "本期领取口令已更新。");
+  }
+
+  async function handleRandomClaimCode() {
+    await runReleaseAction("random-code", randomReleaseClaimCode, "本期领取口令已随机生成。");
+  }
+
+  async function handleResetToken() {
+    const confirmed = window.confirm("重置后旧订阅链接将失效，确定继续吗？");
+    if (!confirmed) {
+      return;
+    }
+    await runReleaseAction("reset-token", resetReleaseSubscriptionToken, "安全订阅 token 已重置。");
+  }
+
+  async function handleRebuildSubscription() {
+    await runReleaseAction("rebuild-sub", rebuildReleaseSubscription, "安全订阅已刷新。");
+  }
+
+  async function handleCopyClaimPage() {
+    if (!current?.claimPageUrl) {
+      setMessage("请先配置公开订阅域名。");
+      return;
+    }
+    const copied = await copyTextToClipboard(current.claimPageUrl);
+    setMessage(copied ? "已复制公开领取页地址。" : "自动复制失败，请检查浏览器权限或使用 HTTPS 后重试。");
+  }
+
+  async function handleCopySafeSubscription() {
+    try {
+      const status = await fetchSubscriptionStatus();
+      const fullUrl = getPublicSubscriptionUrl(status);
+      if (!fullUrl) {
+        setMessage("安全订阅链接暂不可复制，请检查订阅状态和公开域名配置。");
+        return;
+      }
+      const copied = await copyTextToClipboard(fullUrl);
+      setMessage(copied ? "已复制安全订阅链接。" : "自动复制失败，请检查浏览器权限或使用 HTTPS 后重试。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "安全订阅链接复制失败。");
+    }
+  }
+
+  return (
+    <div className="release-page">
+      <section>
+        <div className="section-heading-row">
+          <h3 className="subheading">本期领取信息</h3>
+          <button disabled={loading} onClick={() => void loadRelease()}>
+            {loading ? "正在刷新..." : "刷新"}
+          </button>
+        </div>
+        <InfoGrid
+          items={[
+            ["当前领取口令", current?.claimCode || "未配置"],
+            ["公开领取页", current?.claimPageUrl || "未配置公开域名"],
+            ["订阅状态", current?.subscriptionGenerated ? "已生成" : "未生成"],
+            ["可用节点数", `${current?.nodeCount ?? 0} / 目标 ${current?.targetNodeCount ?? 20} / 保底 ${current?.minNodeCount ?? 10}`],
+            ["订阅可访问", formatBool(Boolean(current?.subscriptionAccessible), "可访问", "不可访问")],
+            ["有效期", current?.expiresAt ? `${formatDate(current.expiresAt)}，剩余 ${current.remainingDays} 天` : "暂无"],
+            ["最后生成时间", formatDate(current?.lastGeneratedAt || null)],
+            ["最后重置 token", formatDate(current?.lastTokenResetAt || null)],
+            ["最后刷新订阅", formatDate(current?.lastSubscriptionRebuildAt || null)],
+            ["订阅链接", current?.maskedSubscriptionUrl || "未生成"]
+          ]}
+        />
+        <SectionNote>当前领取口令仅后台可见，不要公开后台地址；订阅链接只显示脱敏形式。</SectionNote>
+      </section>
+
+      <section>
+        <h3 className="subheading">发布前操作</h3>
+        <div className="release-code-row">
+          <input
+            value={claimCodeDraft}
+            onChange={(event) => setClaimCodeDraft(event.target.value)}
+            placeholder="输入本期视频领取口令"
+          />
+          <button disabled={acting === "set-code"} onClick={() => void handleSetClaimCode()}>
+            {acting === "set-code" ? "正在保存..." : "手动设置口令"}
+          </button>
+          <button disabled={acting === "random-code"} onClick={() => void handleRandomClaimCode()}>
+            {acting === "random-code" ? "正在生成..." : "随机生成口令"}
+          </button>
+        </div>
+        <div className="action-row">
+          <button disabled={acting === "reset-token"} onClick={() => void handleResetToken()}>
+            {acting === "reset-token" ? "正在重置..." : "重置订阅 token"}
+          </button>
+          <button disabled={acting === "rebuild-sub"} onClick={() => void handleRebuildSubscription()}>
+            {acting === "rebuild-sub" ? "正在刷新..." : "刷新订阅"}
+          </button>
+          <button onClick={() => void handleCopyClaimPage()}>复制公开领取页</button>
+          <button onClick={() => void handleCopySafeSubscription()}>复制安全订阅链接</button>
+        </div>
+        {message ? <div className="inline-message">{message}</div> : null}
+      </section>
+
+      <section>
+        <h3 className="subheading">发布前提醒</h3>
+        <ul className="reminder-list">
+          <li>发视频前建议重新检测节点。</li>
+          <li>发视频前建议刷新订阅。</li>
+          <li>新一期视频建议修改口令。</li>
+          <li>如果不想旧链接继续传播，建议重置订阅 token。</li>
+          <li>不要公开后台地址，不要开放全部 /api/*。</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 className="subheading">操作历史</h3>
+        <div className="table-panel">
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>动作</th>
+                <th>结果</th>
+                <th>安全说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((item) => (
+                <tr key={item.id}>
+                  <td>{formatDate(item.createdAt)}</td>
+                  <td>{item.type}</td>
+                  <td>{item.message}</td>
+                  <td>{Object.entries(item.safeDetail).map(([key, value]) => `${key}: ${value ?? "-"}`).join("，") || "-"}</td>
+                </tr>
+              ))}
+              {!history.length ? (
+                <tr>
+                  <td colSpan={4}>暂无操作历史</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function SettingsPage() {
   const [publishCheck, setPublishCheck] = useState<PublishCheckResponse | null>(null);
   const [loadingPublishCheck, setLoadingPublishCheck] = useState(true);
@@ -1794,6 +2082,7 @@ function AdminApp() {
     collector: <CollectorPage />,
     detection: <DetectionPage />,
     subscription: <SubscriptionPage />,
+    release: <ReleasePage />,
     cores: <CoresPage />,
     stats: <StatsPage />,
     settings: <SettingsPage />

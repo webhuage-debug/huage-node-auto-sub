@@ -387,3 +387,16 @@ v0.5.0 验收项：
 - 不修改订阅、领取、防刷、检测、节点池核心逻辑。
 - 不修改 Caddy、Dockerfile 或 docker-compose.yml。
 - 不提交 `.env`、`data/` 或 `cores/`。
+
+# v1.0.6 验收项
+
+- `/api/status` 返回 `version=v1.0.6`。
+- 后台左侧出现“发布管理”。
+- `GET /api/release/current` 返回本期领取口令、公开领取页、订阅状态、节点数量、有效期和脱敏订阅链接。
+- `POST /api/release/set-claim-code` 可以手动设置新口令，且 `/api/claim/verify` 使用新口令通过、旧口令失效。
+- `POST /api/release/random-claim-code` 可以随机生成口令。
+- `POST /api/release/rebuild-subscription` 可以刷新订阅。
+- `POST /api/release/reset-subscription-token` 可以重置 token，但接口和页面不返回完整 token 或完整订阅链接。
+- `GET /api/release/history` 返回最近操作历史。
+- 页面不显示 raw 节点、raw/base64 链接、完整订阅链接或完整订阅 token。
+- 不修改 Caddy、Dockerfile、docker-compose.yml；不提交 `.env`、`data/` 或 `cores/`。

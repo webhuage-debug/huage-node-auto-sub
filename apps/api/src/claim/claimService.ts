@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { getCurrentClaimCode } from "../release/releaseStore.js";
 import { readSubscriptionFile } from "../subscription/subscriptionStore.js";
 import type { ClaimVerifyBody, ClaimVerifyResponse } from "./claimTypes.js";
 import {
@@ -7,11 +8,6 @@ import {
   getClaimRateLimitStatus,
   recordClaimFailure
 } from "./claimRateLimiter.js";
-
-function getClaimAccessCode(): string | null {
-  const value = process.env.CLAIM_ACCESS_CODE?.trim();
-  return value || null;
-}
 
 function getPublicSubscriptionBaseUrl(): string | null {
   const value = process.env.SUBSCRIPTION_PUBLIC_BASE_URL?.trim();
@@ -50,7 +46,7 @@ export async function verifyClaimCodeHandler(
     return tooManyAttemptsResponse(rateLimitStatus.retryAfterSeconds);
   }
 
-  const configuredCode = getClaimAccessCode();
+  const configuredCode = await getCurrentClaimCode();
   if (!configuredCode) {
     return {
       ok: false,

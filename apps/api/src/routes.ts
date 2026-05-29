@@ -33,6 +33,14 @@ import {
 import { startSubscriptionAutoRefresh } from "./subscription/subscriptionAutoRefresh.js";
 import { verifyClaimCodeHandler } from "./claim/claimService.js";
 import { getPublishCheckStatusHandler, preparePublishHandler } from "./publishCheck/publishCheckService.js";
+import {
+  getReleaseCurrentHandler,
+  getReleaseHistoryHandler,
+  randomReleaseClaimCodeHandler,
+  rebuildReleaseSubscriptionHandler,
+  resetReleaseSubscriptionTokenHandler,
+  setReleaseClaimCodeHandler
+} from "./release/releaseService.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -172,6 +180,18 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/publish-check/status", async () => getPublishCheckStatusHandler());
 
   app.post("/api/publish-check/prepare", async () => preparePublishHandler());
+
+  app.get("/api/release/current", async () => getReleaseCurrentHandler());
+
+  app.post("/api/release/set-claim-code", async (request) => setReleaseClaimCodeHandler(request));
+
+  app.post("/api/release/random-claim-code", async () => randomReleaseClaimCodeHandler());
+
+  app.post("/api/release/reset-subscription-token", async () => resetReleaseSubscriptionTokenHandler());
+
+  app.post("/api/release/rebuild-subscription", async () => rebuildReleaseSubscriptionHandler());
+
+  app.get("/api/release/history", async () => getReleaseHistoryHandler());
 
   app.get("/sub/:token", async (request, reply) => publicSubscriptionHandler(request, reply));
 
