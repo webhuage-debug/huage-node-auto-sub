@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { getNodeById, getNodePoolStatus, listNodesByStatus, updateNodeDetectionResult, updateNodeStatus } from "../nodePool/nodeStore.js";
-import type { NodePoolItem, NodeStatus } from "../nodePool/nodeTypes.js";
+import { getNodeById, getNodePoolStatus, getPublicNodeById, listNodesByStatus, updateNodeDetectionResult, updateNodeStatus } from "../nodePool/nodeStore.js";
+import type { NodePoolItem, NodeStatus, PublicNodePoolItem } from "../nodePool/nodeTypes.js";
 import { getDetectionState, markDetectionError, markDetectionFinished, markDetectionStarted, pushDetectionHistory, setTestingCount } from "./detectionState.js";
 import type { DetectionHistoryItem, DetectionResult, DetectionSettings } from "./detectionTypes.js";
 import { getXrayCoreStatus, testNodeWithXray } from "./xrayDetector.js";
@@ -47,13 +47,17 @@ function summarizeResults(results: DetectionResult[]): Omit<DetectionHistoryItem
 }
 
 async function persistDetectionResult(result: DetectionResult): Promise<void> {
-  await updateNodeDetectionResult(result.nodeId, {
+  const updatedNode = await updateNodeDetectionResult(result.nodeId, {
     status: result.status as NodeStatus,
     detectionCore: "xray",
     responseMs: result.responseMs,
     failureReason: result.failureReason,
     debug: result.debug
   });
+
+  if (!updatedNode) {
+    throw new Error("节点检测结果写回失败：未找到节点。");
+  }
 }
 
 async function runOneNodeDetection(node: NodePoolItem, settings: DetectionSettings): Promise<DetectionResult> {
@@ -159,10 +163,12 @@ export async function testOneNodeHandler(request: FastifyRequest, reply: Fastify
 
   markDetectionStarted(1);
   let result: DetectionResult;
+  let persistedNode: PublicNodePoolItem | null = null;
 
   try {
     setTestingCount(1);
     result = await runOneNodeDetection(node, settings);
+    persistedNode = await getPublicNodeById(node.id);
     setTestingCount(0);
     const summary = summarizeResults([result]);
     pushDetectionHistory({
@@ -182,14 +188,27 @@ export async function testOneNodeHandler(request: FastifyRequest, reply: Fastify
     };
   }
 
+  if (!persistedNode) {
+    reply.code(500);
+    return {
+      ok: false,
+      error: "DETECTION_RESULT_NOT_PERSISTED",
+      message: "检测已执行，但未能重新读取写回后的节点。"
+    };
+  }
+
   return {
     ok: true,
-    nodeId: result.nodeId,
-    status: result.status,
-    responseMs: result.responseMs,
-    failureReason: result.failureReason,
-    detectionCore: "xray",
-    debug: result.debug
+    nodeId: persistedNode.id,
+    status: persistedNode.status,
+    responseMs: persistedNode.responseMs ?? null,
+    failureReason: persistedNode.failureReason ?? null,
+    detectionCore: persistedNode.detectionCore || "xray",
+    lastTestedAt: persistedNode.lastTestedAt || null,
+    detectionDebug: persistedNode.detectionDebug || null,
+    detectionRuntimeDebug: persistedNode.detectionRuntimeDebug || null,
+    debug: persistedNode.debug || null,
+    node: persistedNode
   };
 }
 

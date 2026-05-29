@@ -346,6 +346,22 @@ v0.5.0 验收项：
 - 不修改 Caddy 或 docker-compose.yml。
 - 不提交 `.env`、`data/` 或 `cores/`。
 
+# v1.0.4 热修复验收项
+
+- `/api/status` 返回 `version=v1.0.4`。
+- `POST /api/detection/xray/test-node/:nodeId` 已注册并可返回 JSON。
+- 路径版接口根据 `nodeId` 从节点池读取节点。
+- 路径版接口执行当前 Xray 检测流程并写回节点池。
+- 接口返回写回后重新读取的脱敏节点信息。
+- 返回 JSON 包含 `lastTestedAt`、`detectionRuntimeDebug`、`detectionDebug` 和 `debug`。
+- 再查 `/api/node-pool/nodes`，同一节点的 `lastTestedAt` 必须更新，`detectionRuntimeDebug` 不能为 null。
+- `curlExitCode=0` 且 `httpCode=204` 或 `httpCode=200` 时，节点必须写成 `status=available`。
+- 失败时 `failureStage` 不能沿用旧错误，必须反映本轮检测阶段。
+- 前端节点行的“Xray 检测 / 重新 Xray 检测”按钮调用路径版 `test-node/:nodeId`。
+- 不输出 raw 节点、完整 publicKey、订阅 token、完整订阅链接或真实口令。
+- 不修改 Caddy、Dockerfile 或 docker-compose.yml。
+- 不提交 `.env`、`data/` 或 `cores/`。
+
 # v1.0.0 稳定版验收项
 
 - `/api/status` 返回 `version=v1.0.0`。

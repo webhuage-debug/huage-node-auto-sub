@@ -147,6 +147,14 @@ v0.8.5 增加 `POST /api/publish-check/prepare`，用于后台执行发布前准
 - 前端节点行的“Xray 检测 / 重新 Xray 检测”按钮调用单节点检测接口。
 - 本版本不新增业务功能，不修改订阅、领取、口令、防刷、Caddy 或 docker-compose 配置。
 
+# v1.0.4 热修复
+
+- v1.0.4：修复 `POST /api/detection/xray/test-node/:nodeId` 的真实执行、写回后重读和脱敏返回。
+- 路径版接口根据 `nodeId` 读取节点，执行 Xray 检测，写回节点池，再重新读取脱敏节点确认落盘。
+- 返回结果包含 `lastTestedAt`、`detectionRuntimeDebug`、`detectionDebug`、`debug` 和脱敏 `node`。
+- 前端节点行按钮调用路径版 `test-node/:nodeId`，支持重新检测 `unavailable` 节点。
+- 本版本不修改 Xray 配置生成、Reality 参数解析、订阅、领取、Caddy、Dockerfile 或 docker-compose 配置。
+
 # v1.0.0 稳定版更新
 
 - v1.0.0：稳定版封版（当前稳定版）

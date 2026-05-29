@@ -244,7 +244,7 @@ type PublishPrepareResponse = {
   error?: string;
 };
 
-const appVersion = "v1.0.3";
+const appVersion = "v1.0.4";
 
 const menus: MenuItem[] = [
   { key: "overview", label: "总览" },
@@ -682,12 +682,11 @@ async function testUntestedNodes(limit: number) {
 }
 
 async function testSingleNode(nodeId: string) {
-  const response = await fetch("/api/detection/xray/test-node", {
+  const response = await fetch(`/api/detection/xray/test-node/${encodeURIComponent(nodeId)}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ nodeId })
+    }
   });
   const payload = await response.json();
 

@@ -14,6 +14,12 @@ v1.0.3 修复单节点检测写回问题：新增 `POST /api/detection/xray/test
 
 本热修复同时在 Docker runner 阶段安装 `curl` 和 `ca-certificates`，确保软件检测链路依赖的 curl 可用。本版本不修改订阅、领取、口令、防刷、Caddy 或 docker-compose 配置，不提交 `data/`、`cores/` 或 `.env`。
 
+# v1.0.4 热修复补充
+
+v1.0.4 修复路径版单节点检测接口：`POST /api/detection/xray/test-node/:nodeId` 会按路径参数读取节点、执行 Xray 检测、写回节点池，并重新读取写回后的脱敏节点返回。该返回用于确认 `lastTestedAt` 和 `detectionRuntimeDebug` 已经真实持久化。
+
+前端节点行按钮改为调用路径版接口。该热修复不修改 Xray 配置生成、Reality 参数解析、订阅、领取、防刷、Caddy、Dockerfile 或 docker-compose 配置，不输出 raw 节点、token 或完整订阅链接。
+
 # 16 v1.0.0 稳定版发布说明
 
 ## 文档目的

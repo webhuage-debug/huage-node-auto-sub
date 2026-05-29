@@ -222,6 +222,11 @@ export async function getNodeById(id: string): Promise<NodePoolItem | null> {
   return file.nodes.find((node) => node.id === id) || null;
 }
 
+export async function getPublicNodeById(id: string): Promise<PublicNodePoolItem | null> {
+  const node = await getNodeById(id);
+  return node ? toPublicNode(node) : null;
+}
+
 export async function listNodesByStatus(status: NodeStatus, limit: number): Promise<NodePoolItem[]> {
   const file = await readNodePoolFile();
   return file.nodes
@@ -240,7 +245,7 @@ export async function updateNodeDetectionResult(
     failureReason: string | null;
     debug?: NodeDetectionDebug;
   }
-): Promise<NodePoolItem | null> {
+): Promise<PublicNodePoolItem | null> {
   const file = await readNodePoolFile();
   const node = file.nodes.find((item) => item.id === id);
 
@@ -268,7 +273,7 @@ export async function updateNodeDetectionResult(
   file.updatedAt = now;
 
   await writeNodePoolFile(file);
-  return node;
+  return toPublicNode(node);
 }
 
 export async function updateNodeStatus(id: string, status: NodeStatus): Promise<NodePoolItem | null> {
