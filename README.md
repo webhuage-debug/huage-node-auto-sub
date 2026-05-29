@@ -4,7 +4,7 @@
 
 ## 当前版本
 
-当前版本为 `v1.0.1` 热修复版，已经完成项目骨架、GitHub 线索搜索、节点解析、本地 JSON 节点池基础、Xray-core 检测、节点状态手动校正、安全订阅链接、订阅缓存自动刷新、订阅页隐藏 token 展示、公开订阅域名配置、安全订阅 token 重置、订阅有效期、订阅二维码下载、公开领取页和口令验证、领取验证成功后返回可复制订阅链接、领取口令防刷、隐藏二维码预览、发布前检查页、发布前检查结果优化、发布前一键准备操作区，以及 Xray-core 内核状态识别热修复。
+当前版本为 `v1.0.2` 热修复版，已经完成项目骨架、GitHub 线索搜索、节点解析、本地 JSON 节点池基础、Xray-core 检测、节点状态手动校正、安全订阅链接、订阅缓存自动刷新、订阅页隐藏 token 展示、公开订阅域名配置、安全订阅 token 重置、订阅有效期、订阅二维码下载、公开领取页和口令验证、领取验证成功后返回可复制订阅链接、领取口令防刷、隐藏二维码预览、发布前检查页、发布前检查结果优化、发布前一键准备操作区、Xray-core 内核状态识别热修复，以及 Xray 检测流程与手动成功流程对齐。
 
 `v0.2.0` 在骨架基础上增加 GitHub 公开线索采集链路：
 
@@ -288,6 +288,17 @@ Docker Compose 预留给后续 VPS 部署使用，服务名、容器名和镜像
 2. `GET /api/detection/xray/status` 返回 `installed=true`、`available=true` 和实际版本号。
 3. 后台内核管理页显示 Xray-core 已安装并可执行。
 4. 导入测试节点后可发起 Xray 真实检测，结果不应再是 xray not found。
+
+# v1.0.2 热修复
+
+`v1.0.2` 修复 Xray 检测流程误判问题。软件检测流程现在对齐 VPS 手动成功流程：生成临时 Xray JSON 配置，使用 `xray run -config` 启动临时进程，等待本地 SOCKS 端口就绪，再用 `curl --socks5-hostname 127.0.0.1:随机端口` 访问检测 URL。
+
+检测结果判定规则：
+
+- `http_code=204` 或 `http_code=200` 判定为 `available`。
+- 只有 curl 未成功时才结合 Xray 安全日志摘要生成 failureReason。
+- 安全 debug 只返回 `configBuildOk`、`xrayStarted`、`socksPort`、`curlExitCode`、`httpCode`、`failureStage`、`safeFailureReason` 等字段。
+- 不输出 raw 节点、完整 publicKey、订阅 token 或完整订阅链接。
 
 # v1.0.0 稳定版
 

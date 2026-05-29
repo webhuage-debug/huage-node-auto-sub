@@ -316,6 +316,20 @@ v0.5.0 验收项：
 - 不提交 `cores/`、`data/` 或 `.env`。
 - 不修改 Dockerfile、docker-compose.yml 或 Caddy。
 
+# v1.0.2 热修复验收项
+
+- `/api/status` 返回 `version=v1.0.2`。
+- `/api/detection/xray/status` 继续返回 `installed=true` 和 `available=true`。
+- 软件检测使用 `xray run -config` 启动临时 Xray 配置。
+- 软件检测等待 `127.0.0.1` 随机 SOCKS 端口就绪。
+- 软件检测使用 `curl --socks5-hostname 127.0.0.1:随机端口` 访问检测 URL。
+- `http_code=204` 或 `http_code=200` 判定节点为 `available`。
+- 成功检测结果写入 `status=available`、`detectionCore=xray`、`responseMs`，并清空 `failureReason`。
+- 失败时返回 `failureStage` 和安全 failureReason，用于区分配置构建、Xray 启动、SOCKS 监听和 curl 请求阶段。
+- 不输出 raw 节点、完整 publicKey、订阅 token、完整订阅链接或真实口令。
+- 不修改 Caddy、Dockerfile 或 docker-compose.yml。
+- 不提交 `.env`、`data/` 或 `cores/`。
+
 # v1.0.0 稳定版验收项
 
 - `/api/status` 返回 `version=v1.0.0`。

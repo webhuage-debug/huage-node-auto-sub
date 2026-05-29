@@ -11,6 +11,13 @@ export type DetectionDebug = NodeDetectionDebug & {
   hasFingerprint?: boolean;
   hasShortId?: boolean;
   spiderXValueType?: "/" | "empty" | "custom";
+  configBuildOk?: boolean;
+  xrayStarted?: boolean;
+  socksPort?: number;
+  curlExitCode?: number | null;
+  httpCode?: string | null;
+  failureStage?: "XRAY_START" | "SOCKS_LISTEN" | "CURL_REQUEST" | "CONFIG_BUILD" | null;
+  safeFailureReason?: string | null;
 };
 
 export type DetectionResult = {

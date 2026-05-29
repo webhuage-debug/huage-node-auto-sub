@@ -130,6 +130,14 @@ v0.8.5 增加 `POST /api/publish-check/prepare`，用于后台执行发布前准
 - 内核管理页显示 Xray-core 已安装、版本号、可执行路径和失败原因。
 - 本版本不新增业务功能，不修改订阅、领取、口令、防刷、节点池或 Caddy/Docker 配置。
 
+# v1.0.2 热修复
+
+- v1.0.2：修复 Xray 检测流程误判问题。
+- 软件检测流程对齐手动成功流程：临时配置、`xray run -config`、等待 SOCKS 端口、`curl --socks5-hostname` 检测。
+- `http_code=204` 或 `http_code=200` 判定为 `available`。
+- 增加安全 debug 字段用于定位检测阶段，不返回 raw 节点、token、完整订阅链接或完整 publicKey。
+- 本版本不新增业务功能，不修改订阅、领取、口令、防刷、节点池或 Caddy/Docker 配置。
+
 # v1.0.0 稳定版更新
 
 - v1.0.0：稳定版封版（当前稳定版）

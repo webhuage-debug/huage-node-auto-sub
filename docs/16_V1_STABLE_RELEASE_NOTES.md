@@ -2,6 +2,12 @@
 
 v1.0.1 修复 Xray-core 内核状态识别：后端以 `/app/cores/xray/xray version` 为准判断内核是否真实可执行，并在内核管理页展示已安装状态、版本号和路径。该修复用于完成真实节点检测链路验收，不新增业务功能。
 
+# v1.0.2 热修复补充
+
+v1.0.2 修复 Xray 检测流程误判：软件检测链路对齐 VPS 手动成功链路，使用临时 Xray JSON 配置、`xray run -config`、本地 `127.0.0.1` SOCKS inbound，以及 `curl --socks5-hostname` 访问 `https://www.gstatic.com/generate_204`。当 curl 返回 `http_code=204` 或 `http_code=200` 时，节点判定为 `available`。
+
+本热修复只调整检测执行链路和安全 debug 摘要，不改变订阅、领取、口令、防刷、节点池、Caddy 或 Docker 配置；不输出 raw 节点、完整 publicKey、订阅 token 或完整订阅链接。
+
 # 16 v1.0.0 稳定版发布说明
 
 ## 文档目的

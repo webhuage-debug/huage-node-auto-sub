@@ -7,11 +7,18 @@ import { getFreeLocalPort } from "../utils/port.js";
 import { removeTempFile, writeTempJsonFile } from "../utils/tempFile.js";
 import type { NodePoolItem } from "../nodePool/nodeTypes.js";
 import { buildXrayConfig, getNodeDetectionDebug } from "./xrayConfigBuilder.js";
-import type { DetectionResult, DetectionSettings, XrayCoreStatus } from "./detectionTypes.js";
+import type { DetectionDebug, DetectionResult, DetectionSettings, XrayCoreStatus } from "./detectionTypes.js";
 
 const xrayMissingMessage = "未检测到 Xray-core，请先安装或放置 Xray-core 到指定目录";
 
 type SocksStage = "SOCKS_GREETING" | "SOCKS_CONNECT" | "TLS_REQUEST";
+
+type CurlDetectionResult = {
+  exitCode: number | null;
+  httpCode: string;
+  stderr: string;
+  responseMs: number;
+};
 
 export async function isXrayInstalled(binaryPath: string): Promise<boolean> {
   return (await getXrayCoreStatus(binaryPath)).available;
@@ -283,6 +290,84 @@ async function requestThroughSocksProxy(proxyPort: number, targetUrl: string, ti
   return requestHttpsOverSocket(socket, url, timeoutMs);
 }
 
+async function waitForSocksPort(proxyPort: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = "SOCKS 端口未监听";
+
+  while (Date.now() < deadline) {
+    try {
+      const socket = await connectTcp("127.0.0.1", proxyPort, 300);
+      socket.destroy();
+      return;
+    } catch (error) {
+      lastError = getErrorMessage(error);
+      await delay(100);
+    }
+  }
+
+  throw new Error(lastError);
+}
+
+function runCurlThroughSocks(proxyPort: number, targetUrl: string, timeoutSeconds: number): Promise<CurlDetectionResult> {
+  const startedAt = Date.now();
+  const args = [
+    "--silent",
+    "--show-error",
+    "--output",
+    "/dev/null",
+    "--write-out",
+    "%{http_code}",
+    "--max-time",
+    String(Math.max(1, timeoutSeconds)),
+    "--socks5-hostname",
+    `127.0.0.1:${proxyPort}`,
+    targetUrl
+  ];
+
+  return new Promise((resolve, reject) => {
+    const child = spawn("curl", args, {
+      stdio: "pipe"
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.once("error", (error) => {
+      reject(error);
+    });
+    child.once("close", (exitCode) => {
+      resolve({
+        exitCode,
+        httpCode: stdout.trim(),
+        stderr: stderr.replace(/\s+/g, " ").trim().slice(0, 200),
+        responseMs: Date.now() - startedAt
+      });
+    });
+  });
+}
+
+function isSuccessfulHttpCode(httpCode: string): boolean {
+  return httpCode === "204" || httpCode === "200";
+}
+
+function buildCurlFailureReason(curlResult: CurlDetectionResult, xrayHints: string[]): string {
+  if (xrayHints.length > 0) {
+    return `Reality 握手失败：Xray 日志出现 TLS/Reality 相关错误。请检查 publicKey、serverName、shortId、spiderX、flow 是否和客户端一致。Xray 提示：${xrayHints.join(" | ")}`;
+  }
+
+  if (curlResult.httpCode && curlResult.httpCode !== "000") {
+    return `curl socks 检测 HTTP 状态异常：http_code=${curlResult.httpCode}`;
+  }
+
+  return `curl socks 检测失败：exitCode=${curlResult.exitCode ?? "unknown"}${curlResult.stderr ? `，${curlResult.stderr}` : ""}`;
+}
+
 function normalizeFailureReason(error: unknown): string {
   const message = getErrorMessage(error);
   const lower = message.toLowerCase();
@@ -314,7 +399,15 @@ function normalizeFailureReason(error: unknown): string {
 }
 
 export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSettings): Promise<DetectionResult> {
-  const debug = getNodeDetectionDebug(node, settings.testUrl);
+  const debug: DetectionDebug = {
+    ...getNodeDetectionDebug(node, settings.testUrl),
+    configBuildOk: false,
+    xrayStarted: false,
+    curlExitCode: null,
+    httpCode: null,
+    failureStage: null,
+    safeFailureReason: null
+  };
 
   if (!(await isXrayInstalled(settings.xrayBinaryPath))) {
     return {
@@ -327,9 +420,12 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
   }
 
   const localPort = await getFreeLocalPort();
+  debug.socksPort = localPort;
   const config = buildXrayConfig(node, localPort);
 
   if (!config.ok) {
+    debug.failureStage = "CONFIG_BUILD";
+    debug.safeFailureReason = config.reason;
     return {
       nodeId: node.id,
       status: "unsupported",
@@ -338,6 +434,7 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
       debug
     };
   }
+  debug.configBuildOk = true;
 
   let child: ChildProcessWithoutNullStreams | null = null;
   let configPath: string | null = null;
@@ -361,8 +458,10 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
       }
     });
 
-    await delay(1000);
+    await delay(300);
     if (childStartError) {
+      debug.failureStage = "XRAY_START";
+      debug.safeFailureReason = `Xray 启动失败：${getErrorMessage(childStartError)}`;
       return {
         nodeId: node.id,
         status: "error",
@@ -372,6 +471,8 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
       };
     }
     if (child.exitCode !== null) {
+      debug.failureStage = "XRAY_START";
+      debug.safeFailureReason = `Xray 配置错误或启动失败：子进程提前退出，exitCode=${child.exitCode}`;
       return {
         nodeId: node.id,
         status: "error",
@@ -380,18 +481,54 @@ export async function testNodeWithXray(node: NodePoolItem, settings: DetectionSe
         debug
       };
     }
+    debug.xrayStarted = true;
 
-    const responseMs = await requestThroughSocksProxy(localPort, settings.testUrl, settings.timeoutSeconds * 1000);
+    try {
+      await waitForSocksPort(localPort, 3000);
+    } catch (error) {
+      debug.failureStage = "SOCKS_LISTEN";
+      debug.safeFailureReason = `Xray SOCKS 端口未就绪：${getErrorMessage(error)}`;
+      return {
+        nodeId: node.id,
+        status: "error",
+        responseMs: null,
+        failureReason: debug.safeFailureReason,
+        debug
+      };
+    }
 
+    const curlResult = await runCurlThroughSocks(localPort, settings.testUrl, settings.timeoutSeconds);
+    debug.curlExitCode = curlResult.exitCode;
+    debug.httpCode = curlResult.httpCode;
+
+    if (curlResult.exitCode === 0 && isSuccessfulHttpCode(curlResult.httpCode)) {
+      debug.failureStage = null;
+      debug.safeFailureReason = null;
+      return {
+        nodeId: node.id,
+        status: "available",
+        responseMs: curlResult.responseMs,
+        failureReason: null,
+        debug
+      };
+    }
+
+    const curlFailureReason = buildCurlFailureReason(curlResult, xrayHints);
+    debug.failureStage = "CURL_REQUEST";
+    debug.safeFailureReason = curlFailureReason;
     return {
       nodeId: node.id,
-      status: "available",
-      responseMs,
-      failureReason: null,
+      status: "unavailable",
+      responseMs: null,
+      failureReason: curlFailureReason,
       debug
     };
   } catch (error) {
     const reason = normalizeFailureReason(error);
+    debug.safeFailureReason = reason;
+    if (!debug.failureStage) {
+      debug.failureStage = "CURL_REQUEST";
+    }
     return {
       nodeId: node.id,
       status: "unavailable",
