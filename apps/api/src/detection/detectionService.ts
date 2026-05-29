@@ -43,7 +43,7 @@ function getErrorMessage(error: unknown): string {
   if (typeof error === "string") {
     return error;
   }
-  return "未知错误";
+  return "UNKNOWN_ERROR";
 }
 
 function createRuntimeDebug(node: NodePoolItem, settings: DetectionSettings, reason: string): DetectionDebug {
@@ -96,7 +96,7 @@ async function runOneNodeDetection(node: NodePoolItem, settings: DetectionSettin
   try {
     result = await testNodeWithXray(node, settings);
   } catch (error) {
-    const reason = `单节点检测异常：${getErrorMessage(error)}`;
+    const reason = `SINGLE_NODE_DETECTION_ERROR: ${getErrorMessage(error)}`;
     result = {
       nodeId: node.id,
       status: "unavailable",
@@ -212,7 +212,7 @@ export async function testOneNodeHandler(request: FastifyRequest, reply: Fastify
     setTestingCount(1);
     result = await runOneNodeDetection(node, settings);
     if (result.status !== "available") {
-      const reason = result.failureReason || result.debug?.safeFailureReason || "单节点检测未通过";
+      const reason = result.failureReason || result.debug?.safeFailureReason || "SINGLE_NODE_DETECTION_FAILED";
       result = {
         ...result,
         status: "unavailable",
@@ -238,7 +238,9 @@ export async function testOneNodeHandler(request: FastifyRequest, reply: Fastify
   } catch (error) {
     const message = error instanceof Error ? error.message : "检测失败";
     markDetectionError(message);
-    reply.code(500);
+    if (reply) {
+      reply.code(500);
+    }
     return {
       ok: false,
       error: "DETECTION_FAILED",
@@ -247,7 +249,9 @@ export async function testOneNodeHandler(request: FastifyRequest, reply: Fastify
   }
 
   if (!persistedNode) {
-    reply.code(500);
+    if (reply) {
+      reply.code(500);
+    }
     return {
       ok: false,
       error: "DETECTION_RESULT_NOT_PERSISTED",
@@ -295,6 +299,37 @@ export async function testUntestedNodesHandler(request: FastifyRequest, reply: F
 
   const body = request.body as TestUntestedBody | undefined;
   const requestedLimit = Math.min(Math.max(Number(body?.limit || settings.batchDefaultLimit), 1), settings.batchMaxLimit);
+  return runUntestedXrayDetection(requestedLimit, reply);
+}
+
+export async function runUntestedXrayDetection(limit: number, reply?: FastifyReply) {
+  const state = getDetectionState();
+  if (state.running) {
+    if (reply) {
+      reply.code(409);
+    }
+    return {
+      ok: false,
+      error: "DETECTION_RUNNING",
+      message: "Xray 检测正在运行中，请等待本轮完成。"
+    };
+  }
+
+  const settings = getDetectionSettings();
+  const coreStatus = await getXrayCoreStatus(settings.xrayBinaryPath);
+  if (!coreStatus.available) {
+    if (reply) {
+      reply.code(400);
+    }
+    return {
+      ok: false,
+      error: "XRAY_NOT_INSTALLED",
+      failureReason: coreStatus.failureReason,
+      message: coreStatus.message
+    };
+  }
+
+  const requestedLimit = Math.min(Math.max(Number(limit || settings.batchDefaultLimit), 1), settings.batchMaxLimit);
   const nodes = await listNodesByStatus("untested", requestedLimit);
   markDetectionStarted(nodes.length);
 
@@ -317,7 +352,9 @@ export async function testUntestedNodesHandler(request: FastifyRequest, reply: F
   } catch (error) {
     const message = error instanceof Error ? error.message : "检测失败";
     markDetectionError(message);
-    reply.code(500);
+    if (reply) {
+      reply.code(500);
+    }
     return {
       ok: false,
       error: "DETECTION_FAILED",

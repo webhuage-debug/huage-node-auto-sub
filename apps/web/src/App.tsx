@@ -4,6 +4,7 @@ import { QRCodeCanvas } from "qrcode.react";
 type MenuKey =
   | "overview"
   | "collector"
+  | "automation"
   | "detection"
   | "subscription"
   | "release"
@@ -279,10 +280,44 @@ type ReleaseHistoryResponse = {
   items: ReleaseHistoryItem[];
 };
 
-const appVersion = "v1.0.6";
+type AutomationSummary = {
+  githubRequests: number;
+  foundLinks: number;
+  addedNodes: number;
+  testedNodes: number;
+  availableNodes: number;
+  subscriptionRebuilt: boolean;
+};
+
+type AutomationStatus = {
+  enabled: boolean;
+  running: boolean;
+  intervalMinutes: number;
+  lastRunAt: string | null;
+  lastRunOk: boolean | null;
+  lastError: string | null;
+  lastSummary: AutomationSummary;
+};
+
+type AutomationLogItem = {
+  id: string;
+  type: string;
+  ok: boolean;
+  createdAt: string;
+  summary: AutomationSummary;
+  safeMessage: string;
+};
+
+type AutomationLogsResponse = {
+  ok: boolean;
+  items: AutomationLogItem[];
+};
+
+const appVersion = "v1.1.0";
 
 const menus: MenuItem[] = [
   { key: "release", label: "发布管理" },
+  { key: "automation", label: "自动化运行" },
   { key: "overview", label: "总览" },
   { key: "collector", label: "采集管理" },
   { key: "detection", label: "检测管理" },
@@ -729,6 +764,35 @@ async function fetchReleaseHistory(): Promise<ReleaseHistoryResponse> {
   const payload = (await response.json()) as ReleaseHistoryResponse;
   if (!response.ok || !payload.ok) {
     throw new Error("发布操作历史读取失败");
+  }
+  return payload;
+}
+
+async function fetchAutomationStatus(): Promise<AutomationStatus> {
+  const response = await fetch("/api/automation/status");
+  if (!response.ok) {
+    throw new Error("自动化状态读取失败");
+  }
+  return response.json();
+}
+
+async function fetchAutomationLogs(): Promise<AutomationLogsResponse> {
+  const response = await fetch("/api/automation/logs");
+  if (!response.ok) {
+    throw new Error("自动化日志读取失败");
+  }
+  return response.json();
+}
+
+async function automationPost(path: string, body?: Record<string, unknown>): Promise<AutomationStatus> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const payload = await response.json();
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.message || payload.error || "自动化操作失败");
   }
   return payload;
 }
@@ -1642,6 +1706,163 @@ function StatsPage() {
   );
 }
 
+function AutomationPage() {
+  const [status, setStatus] = useState<AutomationStatus | null>(null);
+  const [logs, setLogs] = useState<AutomationLogItem[]>([]);
+  const [intervalDraft, setIntervalDraft] = useState("30");
+  const [loading, setLoading] = useState(true);
+  const [acting, setActing] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const loadAutomation = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [nextStatus, nextLogs] = await Promise.all([fetchAutomationStatus(), fetchAutomationLogs()]);
+      setStatus(nextStatus);
+      setLogs(nextLogs.items);
+      setIntervalDraft(String(nextStatus.intervalMinutes));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "自动化状态读取失败");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAutomation();
+  }, [loadAutomation]);
+
+  async function runAction(actionKey: string, runner: () => Promise<AutomationStatus>, successMessage: string) {
+    setActing(actionKey);
+    setMessage(null);
+    try {
+      const nextStatus = await runner();
+      const nextLogs = await fetchAutomationLogs();
+      setStatus(nextStatus);
+      setLogs(nextLogs.items);
+      setIntervalDraft(String(nextStatus.intervalMinutes));
+      setMessage(successMessage);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "自动化操作失败");
+    } finally {
+      setActing(null);
+    }
+  }
+
+  const summary = status?.lastSummary || {
+    githubRequests: 0,
+    foundLinks: 0,
+    addedNodes: 0,
+    testedNodes: 0,
+    availableNodes: 0,
+    subscriptionRebuilt: false
+  };
+
+  return (
+    <div className="automation-page">
+      <section>
+        <div className="section-heading-row">
+          <h3 className="subheading">自动化运行总控</h3>
+          <button disabled={loading || Boolean(acting)} onClick={() => void loadAutomation()}>
+            {loading ? "正在刷新..." : "刷新状态"}
+          </button>
+        </div>
+        <InfoGrid
+          items={[
+            ["总开关", formatBool(Boolean(status?.enabled), "开启", "关闭")],
+            ["当前状态", status?.running ? "运行中" : "未运行"],
+            ["自动运行间隔", `${status?.intervalMinutes ?? 30} 分钟`],
+            ["最近一次运行时间", formatDate(status?.lastRunAt || null)],
+            ["最近一次运行结果", status?.lastRunOk === null || status?.lastRunOk === undefined ? "暂无" : status.lastRunOk ? "成功" : "失败"],
+            ["本轮 GitHub 请求次数", String(summary.githubRequests)],
+            ["本轮发现线索数量", String(summary.foundLinks)],
+            ["本轮新增节点数量", String(summary.addedNodes)],
+            ["本轮检测节点数量", String(summary.testedNodes)],
+            ["本轮可用节点数量", String(summary.availableNodes)],
+            ["本轮是否刷新订阅", formatBool(summary.subscriptionRebuilt, "已刷新", "未刷新")],
+            ["最近错误", status?.lastError || "暂无"]
+          ]}
+        />
+      </section>
+
+      <section>
+        <h3 className="subheading">运行操作</h3>
+        <div className="release-code-row">
+          <input
+            value={intervalDraft}
+            onChange={(event) => setIntervalDraft(event.target.value)}
+            placeholder="自动运行间隔，单位分钟"
+          />
+          <button
+            disabled={acting === "settings"}
+            onClick={() =>
+              void runAction(
+                "settings",
+                () => automationPost("/api/automation/settings", { intervalMinutes: Number(intervalDraft) }),
+                "自动运行间隔已保存。"
+              )
+            }
+          >
+            保存运行间隔
+          </button>
+        </div>
+        <div className="action-row">
+          <button disabled={acting === "enable"} onClick={() => void runAction("enable", () => automationPost("/api/automation/enable"), "自动化已开启。")}>
+            开启自动化
+          </button>
+          <button disabled={acting === "disable"} onClick={() => void runAction("disable", () => automationPost("/api/automation/disable"), "自动化已关闭。")}>
+            关闭自动化
+          </button>
+          <button disabled={acting === "run-once" || status?.running} onClick={() => void runAction("run-once", () => automationPost("/api/automation/run-once"), "已完成一轮自动化运行。")}>
+            {acting === "run-once" ? "正在运行..." : "手动运行一轮"}
+          </button>
+        </div>
+        {message ? <div className="inline-message">{message}</div> : null}
+        <SectionNote>自动化运行会按顺序执行 GitHub 搜索、解析入池、低并发 Xray 检测和必要的订阅刷新；日志只保存脱敏摘要。</SectionNote>
+      </section>
+
+      <section>
+        <h3 className="subheading">最近 20 条自动化日志</h3>
+        <div className="table-panel">
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>结果</th>
+                <th>GitHub</th>
+                <th>新增</th>
+                <th>检测</th>
+                <th>可用</th>
+                <th>订阅</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.slice(0, 20).map((item) => (
+                <tr key={item.id}>
+                  <td>{formatDate(item.createdAt)}</td>
+                  <td>{item.ok ? "成功" : "失败"}</td>
+                  <td>{item.summary.githubRequests}</td>
+                  <td>{item.summary.addedNodes}</td>
+                  <td>{item.summary.testedNodes}</td>
+                  <td>{item.summary.availableNodes}</td>
+                  <td>{item.summary.subscriptionRebuilt ? "已刷新" : "未刷新"}</td>
+                  <td>{item.safeMessage}</td>
+                </tr>
+              ))}
+              {!logs.length ? (
+                <tr>
+                  <td colSpan={8}>暂无自动化日志</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function ReleasePage() {
   const [current, setCurrent] = useState<ReleaseCurrentResponse | null>(null);
   const [history, setHistory] = useState<ReleaseHistoryItem[]>([]);
@@ -2080,6 +2301,7 @@ function AdminApp() {
   const page = {
     overview: <OverviewPage />,
     collector: <CollectorPage />,
+    automation: <AutomationPage />,
     detection: <DetectionPage />,
     subscription: <SubscriptionPage />,
     release: <ReleasePage />,

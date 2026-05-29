@@ -176,3 +176,10 @@ v0.8.5 增加 `POST /api/publish-check/prepare`，用于后台执行发布前准
 - 集中显示本期领取口令、公开领取页、订阅生成状态、可用节点数、有效期、最后生成时间、最后重置 token 时间、最后刷新订阅时间和操作历史。
 - 新增 `GET /api/release/current`、`POST /api/release/set-claim-code`、`POST /api/release/random-claim-code`、`POST /api/release/reset-subscription-token`、`POST /api/release/rebuild-subscription`、`GET /api/release/history`。
 - 本版本不改变订阅、领取、防刷、Xray 检测和 Caddy/Docker 配置；不提交 `data/`、`cores/` 或 `.env`。
+
+# v1.1.0 自动化运行总控
+
+- v1.1.0：新增自动化运行总开关和自动化编排页面。
+- 自动化默认关闭，管理员开启后按固定间隔运行 GitHub 搜索、节点解析入池、Xray 检测新节点和必要的订阅刷新。
+- 新增 `/api/automation/status`、`/api/automation/enable`、`/api/automation/disable`、`/api/automation/run-once`、`/api/automation/settings`、`/api/automation/logs`。
+- 本版本复用现有采集、解析、检测和订阅生成逻辑，不修改 Caddy/Docker，不提交 `data/`、`cores/` 或 `.env`。

@@ -400,3 +400,16 @@ v0.5.0 验收项：
 - `GET /api/release/history` 返回最近操作历史。
 - 页面不显示 raw 节点、raw/base64 链接、完整订阅链接或完整订阅 token。
 - 不修改 Caddy、Dockerfile、docker-compose.yml；不提交 `.env`、`data/` 或 `cores/`。
+
+# v1.1.0 验收项
+
+- `/api/status` 返回 `version=v1.1.0`。
+- 默认 `/api/automation/status` 返回 `enabled=false`。
+- 后台左侧出现“自动化运行”页面。
+- 页面可以开启自动化、关闭自动化、保存运行间隔、手动运行一轮和刷新状态。
+- `POST /api/automation/run-once` 会执行 GitHub 搜索、解析入池、Xray 检测未测试节点，并在需要时刷新订阅。
+- 手动运行后 `lastRunAt` 更新，`GET /api/automation/logs` 有记录。
+- 自动化运行不允许并发重复运行。
+- 自动化日志不保存 raw 节点、订阅 token、完整订阅链接或 GitHub Token。
+- Xray 检测并发保持低并发，不高并发压垮 VPS。
+- 不修改 Caddy、Dockerfile、docker-compose.yml；不提交 `.env`、`data/` 或 `cores/`。

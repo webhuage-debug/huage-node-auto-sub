@@ -3,6 +3,15 @@ import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { appConfig, getConfigDir } from "./config.js";
 import {
+  disableAutomationHandler,
+  enableAutomationHandler,
+  getAutomationLogsHandler,
+  getAutomationStatusHandler,
+  runAutomationOnceHandler,
+  startAutomationScheduler,
+  updateAutomationSettingsHandler
+} from "./automation/automationService.js";
+import {
   getCollectorStatus,
   getLastCollectorResults,
   runGitHubSearchOnce
@@ -116,6 +125,7 @@ function summarizeConfig(fileName: string, content: JsonRecord): JsonRecord {
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   startSubscriptionAutoRefresh();
+  void startAutomationScheduler().catch(() => undefined);
 
   app.get("/health", async () => ({ ok: true }));
 
@@ -180,6 +190,18 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/publish-check/status", async () => getPublishCheckStatusHandler());
 
   app.post("/api/publish-check/prepare", async () => preparePublishHandler());
+
+  app.get("/api/automation/status", async () => getAutomationStatusHandler());
+
+  app.post("/api/automation/enable", async () => enableAutomationHandler());
+
+  app.post("/api/automation/disable", async () => disableAutomationHandler());
+
+  app.post("/api/automation/run-once", async () => runAutomationOnceHandler());
+
+  app.post("/api/automation/settings", async (request) => updateAutomationSettingsHandler(request));
+
+  app.get("/api/automation/logs", async () => getAutomationLogsHandler());
 
   app.get("/api/release/current", async () => getReleaseCurrentHandler());
 

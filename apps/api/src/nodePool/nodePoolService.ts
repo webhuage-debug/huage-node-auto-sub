@@ -59,18 +59,19 @@ function summarizeProtocolStats(nodes: NodePoolItem[]): Record<NodeProtocol, num
   return stats;
 }
 
-async function importText(text: string, source: NodeSource): Promise<ImportSummary> {
+async function importText(text: string, source: NodeSource, maxNodes = Number.POSITIVE_INFINITY): Promise<ImportSummary> {
   const raws = parseNodeRawsFromText(text);
   const nodes = raws
     .map((raw) => createNodeFromRaw(raw, source))
     .filter((node): node is NodePoolItem => Boolean(node));
+  const limitedNodes = Number.isFinite(maxNodes) ? nodes.slice(0, Math.max(0, maxNodes)) : nodes;
 
-  if (nodes.length === 0) {
+  if (limitedNodes.length === 0) {
     return emptyImportSummary();
   }
 
-  const summary = await upsertNodes(nodes);
-  summary.protocolStats = summarizeProtocolStats(nodes);
+  const summary = await upsertNodes(limitedNodes);
+  summary.protocolStats = summarizeProtocolStats(limitedNodes);
   return summary;
 }
 
@@ -189,7 +190,7 @@ export async function importTextHandler(request: FastifyRequest, reply: FastifyR
   };
 }
 
-export async function parseLastGitHubResultsHandler() {
+export async function parseLastGitHubResultsHandler(maxAddedNodes = Number.POSITIVE_INFINITY) {
   const lastResults = getLastCollectorResults();
 
   if (lastResults.resultCount === 0) {
@@ -223,12 +224,16 @@ export async function parseLastGitHubResultsHandler() {
   let duplicated = 0;
 
   for (const content of contentResult.contents) {
+    const remaining = Number.isFinite(maxAddedNodes) ? Math.max(0, maxAddedNodes - inserted) : Number.POSITIVE_INFINITY;
+    if (remaining <= 0) {
+      break;
+    }
     const summary = await importText(content.text, {
       sourceType: "github",
       sourceRepository: content.repository,
       sourcePath: content.path,
       sourceUrl: content.url
-    });
+    }, remaining);
     found += summary.found;
     inserted += summary.inserted;
     duplicated += summary.duplicated;

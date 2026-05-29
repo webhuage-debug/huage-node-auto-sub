@@ -666,6 +666,11 @@ a:hover {
   gap: 18px;
 }
 
+.automation-page {
+  display: grid;
+  gap: 18px;
+}
+
 .release-code-row {
   align-items: center;
   display: flex;
