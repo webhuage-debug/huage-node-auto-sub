@@ -289,3 +289,16 @@ v0.5.0 验收项：
 - 页面能清晰显示通过、警告、失败和安全 detail。
 - 页面不显示 token、完整订阅链接、真实口令、raw/base64 链接或 raw 节点。
 - 不修改 Caddy/Docker，不提交 `data/` 或 `cores/`。
+# v0.9.0 验收项
+
+- `/api/status` 返回 `version=v0.9.0`。
+- README 已补充发布候选版能力概览、正式发布前流程、公开域名说明和安全提醒。
+- `docs/13_DEPLOYMENT_GUIDE.md` 存在，并包含 VPS 拉取代码、Docker Compose 部署、环境变量示例、Caddy 公开入口示例、HTTPS 检查和日志检查。
+- `docs/14_RELEASE_CHECKLIST.md` 存在，并包含正式发视频前检查项。
+- `docs/15_ROLLBACK_GUIDE.md` 存在，并包含 Git 回滚、Docker 重新构建、Caddy 备份恢复、服务状态和公开接口检查。
+- `docs/CODEX_WORK_RULES.md` 存在，并包含后续 Codex 固定工作规则。
+- `scripts/final-acceptance-check.sh` 存在，并只执行只读验收检查。
+- 最终验收脚本不输出 token 全文，不自动重置 token，不自动续期，不修改 Caddy，不修改 `data/`。
+- 不修改核心业务逻辑。
+- 不修改 Caddy、Dockerfile 或 docker-compose.yml。
+- 不提交 `data/` 或 `cores/`。
